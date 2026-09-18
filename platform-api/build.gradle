@@ -1,0 +1,11 @@
+// Contracts every platform adapter (Forge 1.20.1, future NeoForge 1.21.x, ...) implements,
+// plus the version-independent ServerThreadGateway. MUST NOT depend on Minecraft/loader/AE2.
+plugins {
+    id 'mecc.platform-neutral'
+}
+
+dependencies {
+    api project(':core-domain')
+    // Provided at runtime by Minecraft; never bundled.
+    implementation "org.slf4j:slf4j-api:${slf4j_version}"
+}

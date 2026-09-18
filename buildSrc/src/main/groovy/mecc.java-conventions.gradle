@@ -1,0 +1,30 @@
+// Shared Java settings for every ME Control Center JVM module.
+plugins {
+    id 'java-library'
+}
+
+group = project.property('mod_group_id')
+version = project.property('mod_version')
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation platform("org.junit:junit-bom:${project.property('junit_version')}")
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-Xlint:all,-processing,-serial'
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+}

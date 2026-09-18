@@ -1,0 +1,9 @@
+{
+  "mecc_exporter.started": "ME Control Center: exporting %s icons and %s languages...",
+  "mecc_exporter.progress": "ME Control Center: %s / %s icons",
+  "mecc_exporter.done": "ME Control Center: exported %s icons (%s animated, %s skipped) and %s languages to %s",
+  "mecc_exporter.next_step": "Copy the file into the server's config/mecc/content-packs/ folder and restart the server.",
+  "mecc_exporter.failed": "ME Control Center: export failed: %s",
+  "mecc_exporter.busy": "ME Control Center: an export is already running.",
+  "mecc_exporter.unknown_locale": "ME Control Center: unknown language %s"
+}

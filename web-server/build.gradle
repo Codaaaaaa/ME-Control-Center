@@ -1,0 +1,19 @@
+// Embedded HTTP server: REST API routing, structured errors, static web UI hosting.
+// Knows only core-domain service ports and DTOs; never the platform layer.
+plugins {
+    id 'mecc.platform-neutral'
+}
+
+dependencies {
+    api project(':core-domain')
+
+    // Bundled and relocated into the mod jar by the platform adapter.
+    implementation "org.eclipse.jetty:jetty-server:${jetty_version}"
+    implementation "org.eclipse.jetty.websocket:jetty-websocket-jetty-server:${jetty_version}"
+    implementation platform("com.fasterxml.jackson:jackson-bom:${jackson_version}")
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
+    // Provided at runtime by Minecraft; never bundled.
+    implementation "org.slf4j:slf4j-api:${slf4j_version}"
+}

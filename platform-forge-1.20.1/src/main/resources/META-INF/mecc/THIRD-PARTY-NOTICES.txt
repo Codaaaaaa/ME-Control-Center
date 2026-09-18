@@ -1,0 +1,12 @@
+ME Control Center bundles the following third-party libraries (relocated under io.github.codaaaaaa.mecc.shadow):
+
+Eclipse Jetty 12.0.x
+  https://jetty.org/
+  Dual-licensed under the Eclipse Public License 2.0 and the Apache License 2.0.
+
+Jackson (jackson-core, jackson-annotations, jackson-databind, jackson-datatype-jsr310, jackson-dataformat-toml) 2.x
+  https://github.com/FasterXML/jackson
+  Licensed under the Apache License 2.0.
+
+The ME Control Center web UI bundles React, React DOM, React Router, TanStack Query, i18next, react-i18next,
+and Zod, each licensed under the MIT License.

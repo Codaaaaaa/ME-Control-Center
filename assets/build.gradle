@@ -1,0 +1,16 @@
+// Static game assets as data (spec section 20, Tiers 1-2): language tables, model resolution, and offline
+// icon rendering from textures in mod jars and resource packs. Never loads client classes or executes code.
+plugins {
+    id 'mecc.platform-neutral'
+}
+
+dependencies {
+    api project(':core-domain')
+
+    // Bundled and relocated into the mod jar by the platform adapter.
+    implementation platform("com.fasterxml.jackson:jackson-bom:${jackson_version}")
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    // Provided at runtime by Minecraft; never bundled.
+    implementation "org.slf4j:slf4j-api:${slf4j_version}"
+}

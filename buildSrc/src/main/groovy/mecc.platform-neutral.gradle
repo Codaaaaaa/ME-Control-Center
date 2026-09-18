@@ -1,0 +1,45 @@
+// Applied to every module that must stay independent of Minecraft, mod loaders, and AE2.
+// Enforces the dependency rule from spec section 42 at the build level; ArchUnit tests in each
+// module enforce it at the bytecode level.
+plugins {
+    id 'mecc.java-conventions'
+}
+
+dependencies {
+    testImplementation "com.tngtech.archunit:archunit-junit5:${project.property('archunit_version')}"
+}
+
+def forbiddenGroupPrefixes = [
+        'net.minecraft',
+        'net.minecraftforge',
+        'net.neoforged',
+        'net.fabricmc',
+        'com.mojang',
+        'appeng',
+        'maven.modrinth',
+]
+
+def checkTask = tasks.register('checkPlatformNeutralDependencies') {
+    group = 'verification'
+    description = 'Fails if this platform-neutral module resolves any Minecraft, loader, or AE2 dependency.'
+    doLast {
+        ['compileClasspath', 'runtimeClasspath', 'testCompileClasspath', 'testRuntimeClasspath'].each { name ->
+            def components = project.configurations.getByName(name).incoming.resolutionResult.allComponents
+            components.each { component ->
+                def id = component.id
+                if (id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier) {
+                    def offending = forbiddenGroupPrefixes.find { id.group == it || id.group.startsWith(it + '.') }
+                    if (offending != null) {
+                        throw new GradleException(
+                                "${project.path} is platform-neutral but '${name}' resolves ${id.displayName}. " +
+                                        'Move Minecraft/loader/AE2 access into a platform adapter module.')
+                    }
+                }
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn checkTask
+}

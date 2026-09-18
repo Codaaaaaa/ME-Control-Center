@@ -1,0 +1,418 @@
+{
+  "app": {
+    "name": "ME 控制中心",
+    "tagline": "应用能源 2 网页终端"
+  },
+  "nav": {
+    "label": "主导航",
+    "overview": "网络总览",
+    "settings": "设置",
+    "terminal": "资源终端",
+    "crafting": "合成中心",
+    "cpus": "合成 CPU"
+  },
+  "language": {
+    "label": "语言",
+    "en_us": "English",
+    "zh_cn": "简体中文"
+  },
+  "connection": {
+    "online": "已连接",
+    "offline": "无法连接",
+    "checking": "连接中…",
+    "updated": "更新于 {{time}}"
+  },
+  "common": {
+    "yes": "是",
+    "no": "否",
+    "retry": "重试",
+    "cancel": "取消",
+    "save": "保存",
+    "saving": "保存中…",
+    "confirm": "确认",
+    "loading": "加载中…",
+    "unsupported": "不可用",
+    "unsupportedHint": "当前服务器版本无法可靠读取此数值。",
+    "never": "从未",
+    "unknownPlayer": "未知玩家",
+    "close": "关闭"
+  },
+  "errors": {
+    "offline": "ME 控制中心服务器没有响应。它可能已停止，或者地址不正确。",
+    "unauthenticated": "此浏览器已不再处于登录状态。",
+    "permission": "你的角色不允许执行此操作。",
+    "notFound": "该内容不存在，或你没有访问权限。",
+    "unavailable": "Minecraft 服务器繁忙或未运行，请稍后再试。",
+    "rateLimited": "尝试次数过多，请几分钟后再试。",
+    "error": "出现错误（{{code}}）。",
+    "networkOffline": "ME 网络当前未加载，无法读取实时数据。",
+    "codes": {
+      "NOT_CRAFTABLE": "该网络中没有能产出此资源的样板。",
+      "CRAFT_CALCULATION_FAILED": "合成计算失败或耗时过长。",
+      "PLAN_NOT_READY": "合成计划仍在计算中。",
+      "PLAN_INCOMPLETE": "缺少部分材料且无法合成，任务不能开始。",
+      "PLAN_STALE": "计算此计划后 ME 网络已发生变化，请重新计算。",
+      "PLAN_NOT_FOUND": "此合成计划已过期，请重新计算。",
+      "NO_CRAFTING_CPU": "该 ME 网络没有合成 CPU。",
+      "NO_SUITABLE_CPU": "当前没有可承接此任务的合成 CPU：它们忙碌、离线、容量不足或被排除。",
+      "CPU_BUSY": "所选合成 CPU 正忙。",
+      "CPU_OFFLINE": "所选合成 CPU 已离线。",
+      "CPU_TOO_SMALL": "所选合成 CPU 的合成存储不足以运行此任务。",
+      "CPU_NOT_FOUND": "该合成 CPU 已不在网络中。",
+      "MISSING_INGREDIENTS": "部分材料已不在存储中，请重新计算计划。",
+      "NOT_RUNNING": "该任务已不在运行。",
+      "CRAFT_REJECTED": "合成系统拒绝了此任务。",
+      "ORDER_NOT_FOUND": "该合成订单不存在。",
+      "INTERRUPTED": "提交此订单时 ME 控制中心已停止，请在游戏中检查合成 CPU。",
+      "TRACKING_LOST": "此类合成 CPU 无法在服务器重启后继续跟踪。",
+      "JOB_LOST": "该任务已长时间未在任何合成 CPU 上出现，其 CPU 可能已被拆除。",
+      "OUTCOME_NOT_REPORTED": "任务已结束，但此类合成 CPU 不会报告是否完成。"
+    }
+  },
+  "pair": {
+    "title": "配对此浏览器",
+    "subtitle": "将此浏览器关联到你的 Minecraft 账号，无需密码。",
+    "step1": "在游戏中执行",
+    "step2": "输入聊天栏中显示的密钥。密钥几分钟后失效，且只能使用一次。",
+    "keyLabel": "配对密钥",
+    "deviceNameLabel": "设备名称（可选）",
+    "deviceNamePlaceholder": "例如：我的手机",
+    "submit": "配对浏览器",
+    "submitting": "配对中…",
+    "invalid": "密钥无效、已过期或已被使用。请重新执行 /mecc pair 获取新密钥。",
+    "footnote": "此浏览器将保持登录，直到你在设置中或使用 /mecc revoke 撤销它。"
+  },
+  "account": {
+    "signedInAs": "当前账号：{{name}}",
+    "logout": "退出登录",
+    "serverAdmin": "服务器管理员"
+  },
+  "overview": {
+    "title": "网络总览",
+    "subtitle": "你的 ME 网络此刻的运行状况",
+    "network": "网络",
+    "serverSection": "服务器"
+  },
+  "network": {
+    "status": "ME 网络",
+    "state": {
+      "ONLINE": "在线",
+      "DEGRADED": "异常",
+      "OFFLINE": "离线",
+      "CONFLICT": "需要处理"
+    },
+    "reason": {
+      "NOT_DISCOVERED_YET": "ME 控制中心仍在扫描已加载的网络。",
+      "NOT_LOADED": "该网络的无线访问点均未加载。所在区块可能未加载，或无线访问点已被移除。",
+      "UNPOWERED": "网络没有能源。",
+      "BOOTING": "网络正在启动并分配频道。",
+      "CONTROLLER_CONFLICT": "网络中存在冲突的 ME 控制器。",
+      "SPLIT": "该网络的无线访问点现在分属不同的 ME 网络。在重新连接之前，实时访问已暂停。",
+      "MERGED": "该网络现在与另一个 ME 控制中心网络相连。在两者重新分开之前，实时访问已暂停，以免任一网络的成员获得另一网络的访问权。"
+    },
+    "energy": "能量",
+    "energyUsage": "消耗 / 输入",
+    "perTick": "{{value}}/t",
+    "channels": "已用频道",
+    "cpus": "合成 CPU",
+    "cpusValue": "共 {{total}} · 忙碌 {{busy}}",
+    "activeJobs": "进行中的合成",
+    "resourceTypes": "资源种类",
+    "providers": "样板供应器",
+    "nodes": "网络节点",
+    "anchors": "无线访问点",
+    "anchorsValue": "{{total}} 个中 {{active}} 个在工作",
+    "lastSeen": "最近在线",
+    "updated": "状态采集于 {{time}}",
+    "owner": "所有者",
+    "role": "你的角色",
+    "adminOverride": "管理员访问",
+    "manage": "管理网络"
+  },
+  "roles": {
+    "VIEWER": "查看者",
+    "OPERATOR": "操作员",
+    "MANAGER": "管理者",
+    "OWNER": "所有者"
+  },
+  "claim": {
+    "title": "登记网络",
+    "subtitle": "已加载且包含你放置的无线访问点的 ME 网络。登记后你将成为该网络在 ME 控制中心中的所有者。",
+    "adminSubtitle": "作为服务器管理员，你也可以登记其他玩家放置的网络。",
+    "empty": "没有可登记的网络。",
+    "emptyHelp": "在你的 ME 网络上放置一个无线访问点，确保其所在区块已加载，然后刷新。",
+    "refresh": "刷新",
+    "nameLabel": "网络名称",
+    "namePlaceholder": "例如：主基地",
+    "submit": "登记",
+    "submitting": "登记中…",
+    "nodes": "{{count}} 个节点",
+    "unpowered": "无能源",
+    "placedBy": "放置者：{{name}}",
+    "notYours": "由其他玩家放置"
+  },
+  "networks": {
+    "noneTitle": "还没有网络",
+    "noneBody": "你目前无法访问任何 ME 网络。登记一个你建造的网络，或请网络所有者与你共享。",
+    "title": "网络",
+    "subtitle": "你可以访问的 ME 网络",
+    "open": "管理"
+  },
+  "settings": {
+    "title": "设置",
+    "subtitle": "设备、网络与偏好",
+    "tabs": {
+      "devices": "设备",
+      "networks": "网络",
+      "preferences": "偏好"
+    }
+  },
+  "devices": {
+    "title": "已配对设备",
+    "subtitle": "已登录你账号的浏览器。撤销任何你不认识的设备。",
+    "current": "当前设备",
+    "lastUsed": "最近使用：{{time}}",
+    "paired": "配对于 {{time}}",
+    "rename": "重命名",
+    "revoke": "撤销",
+    "signOutHere": "退出登录",
+    "revokeOthers": "撤销其他所有设备",
+    "revokedCount_one": "已撤销 {{count}} 台设备。",
+    "revokedCount_other": "已撤销 {{count}} 台设备。"
+  },
+  "preferences": {
+    "language": "语言",
+    "languageHint": "与 Minecraft 服务器语言无关。"
+  },
+  "networkSettings": {
+    "back": "返回设置",
+    "general": "常规",
+    "nameLabel": "名称",
+    "members": "成员",
+    "membersHint": "玩家需要加入过服务器或使用过 ME 控制中心才能被添加。",
+    "addMember": "添加成员",
+    "playerLabel": "玩家名",
+    "roleLabel": "角色",
+    "add": "添加",
+    "primaryOwner": "主所有者",
+    "you": "你",
+    "remove": "移除",
+    "leave": "退出网络",
+    "leaveHint": "退出后，除非所有者重新添加你，否则你将无法访问。",
+    "dangerZone": "危险操作",
+    "delete": "从 ME 控制中心中移除",
+    "deleteHint": "删除该网络的 ME 控制中心记录和所有成员关系。Minecraft 中的任何内容都不会改变，之后可以重新登记。",
+    "anchors": "身份锚点",
+    "anchorsHint": "ME 控制中心通过这些无线访问点识别该网络。",
+    "anchorActive": "工作中",
+    "anchorInactive": "未工作",
+    "anchorUnloaded": "未加载",
+    "roleHelp": "查看者可以查看网络；操作员还可以发起合成；管理者还可以编辑样板和供应器；所有者还可以管理成员。"
+  },
+  "status": {
+    "loading": "正在加载服务器状态…",
+    "errorTitle": "无法加载服务器状态",
+    "error": {
+      "network": "ME 控制中心服务器没有响应。它可能已停止，或者地址不正确。",
+      "http": "服务器返回了错误（{{code}}）。",
+      "schema": "服务器返回了无法识别的数据。网页界面与服务器版本可能不匹配。"
+    }
+  },
+  "server": {
+    "title": "Minecraft 服务器",
+    "state": {
+      "RUNNING": "在线",
+      "BUSY": "繁忙",
+      "UNAVAILABLE": "不可用"
+    },
+    "busyHint": "服务器主线程未能及时响应。实时数值已隐藏，不做猜测。",
+    "unavailableHint": "Minecraft 服务器正在停止或未运行。",
+    "players": "玩家",
+    "tps": "TPS",
+    "mspt": "每刻耗时",
+    "type": "类型",
+    "dedicated": "专用服务器",
+    "integrated": "内置服务器",
+    "motd": "MOTD"
+  },
+  "platform": {
+    "title": "平台",
+    "minecraft": "Minecraft",
+    "loader": "加载器",
+    "adapter": "适配器"
+  },
+  "mecc": {
+    "title": "ME 控制中心",
+    "version": "版本",
+    "uptime": "运行时间",
+    "roundTrip": "主线程往返耗时",
+    "pending": "排队中的主线程任务"
+  },
+  "ae2": {
+    "title": "应用能源 2",
+    "state": "状态",
+    "loaded": "已加载",
+    "notLoaded": "未加载",
+    "version": "版本",
+    "tested": "已测试",
+    "untested": "未经测试（测试版本为 {{version}}）"
+  },
+  "notFound": {
+    "title": "页面不存在",
+    "back": "返回网络总览"
+  },
+  "terminal": {
+    "search": "搜索资源",
+    "searchPlaceholder": "搜索：铁 · @mekanism · #forge:ingots · craftable:true",
+    "sort": "排序",
+    "sorts": {
+      "NAME": "名称",
+      "AMOUNT": "数量",
+      "MOD": "模组",
+      "CRAFTABLE": "可合成优先"
+    },
+    "ascending": "升序",
+    "descending": "降序",
+    "type": "资源类型",
+    "types": {
+      "ALL": "全部",
+      "ITEM": "物品",
+      "FLUID": "流体",
+      "OTHER": "其他"
+    },
+    "density": "网格密度",
+    "densities": {
+      "COMPACT": "紧凑",
+      "AE2": "AE2 风格",
+      "COMFORTABLE": "宽松"
+    },
+    "count_one": "{{count}} 种资源",
+    "count_other": "{{count}} 种资源",
+    "updated": "更新于 {{time}}",
+    "loading": "正在读取网络存储…",
+    "empty": "该网络中还没有存储任何资源",
+    "emptyHint": "存入 ME 系统的物品会在几秒内显示在这里。",
+    "noMatches": "没有匹配的资源",
+    "noMatchesHint": "试试更短的关键词，用 @ 搜索模组，或用 # 搜索标签。",
+    "errorTitle": "无法加载资源",
+    "unavailableTitle": "ME 网络当前不可用",
+    "craftable": "可合成",
+    "crafting": "正在合成",
+    "craftingAmount": "正在合成 {{amount}}",
+    "detail": "资源详情",
+    "mod": "模组",
+    "registryId": "注册名",
+    "variant": "变体",
+    "variantHint": "该资源带有额外数据（NBT），因此被视为不同的资源。",
+    "tags": "标签",
+    "snapshotAge": "数据快照"
+  },
+  "crafting": {
+    "subtitle": "从网页发起的合成订单",
+    "craft": "合成",
+    "needOperator": "合成需要此网络的操作员（Operator）权限。",
+    "dialogTitle": "合成",
+    "amount": "数量",
+    "amountIn": "数量（{{unit}}）",
+    "calculate": "计算",
+    "calculating": "计算中…",
+    "calculatingLong": "正在计算合成计划，复杂的配方树可能需要一些时间…",
+    "planTitle": "合成计划",
+    "planReady": "可以开始合成",
+    "planMissing_one": "缺少 {{count}} 种材料",
+    "planMissing_other": "缺少 {{count}} 种材料",
+    "planMissingHint": "需要先把缺少的材料放入存储（或使其可合成），任务才能开始。",
+    "bytes": "需要 {{bytes}} 合成存储",
+    "multiplePaths": "存在多条可选配方",
+    "resource": "资源",
+    "stored": "取自存储",
+    "toCraft": "需合成",
+    "missing": "缺少",
+    "truncated": "显示 {{total}} 行中的 {{shown}} 行。",
+    "cpu": "合成 CPU",
+    "cpuAuto": "自动选择",
+    "unsuitable": {
+      "BUSY": "忙碌",
+      "OFFLINE": "离线",
+      "TOO_SMALL": "容量不足",
+      "EXCLUDED": "仅限机器"
+    },
+    "start": "开始合成",
+    "starting": "正在开始…",
+    "started": "合成已开始",
+    "startedHint": "正在 {{cpu}} 上运行。即使关闭浏览器，也可以在合成中心查看进度。",
+    "viewOrders": "查看合成订单",
+    "progressUnknown": "进行中…",
+    "estimated": "估算值",
+    "state": {
+      "SUBMITTING": "提交中",
+      "RUNNING": "运行中",
+      "COMPLETED": "已完成",
+      "CANCELLED": "已取消",
+      "FAILED": "失败",
+      "UNKNOWN": "未知"
+    },
+    "unobserved": "运行此任务的合成 CPU 当前未加载，加载后进度会继续更新。",
+    "creator": "请求者",
+    "created": "创建时间",
+    "elapsed": "已用时间",
+    "duration": "耗时",
+    "history": "历史记录",
+    "hideHistory": "收起历史",
+    "historyError": "无法加载历史记录。",
+    "craftAgain": "再次合成",
+    "cancel": "取消合成",
+    "event": {
+      "CREATED": "已请求",
+      "STARTED": "已开始",
+      "REJECTED": "被合成系统拒绝",
+      "CANCELLED": "已取消",
+      "COMPLETED": "已完成",
+      "UNKNOWN": "结果未知"
+    },
+    "tabs": {
+      "ACTIVE": "进行中",
+      "COMPLETED": "已完成",
+      "FAILED": "失败",
+      "CANCELLED": "已取消"
+    },
+    "ordersError": "无法加载合成订单",
+    "empty": {
+      "ACTIVE": "当前没有从 ME 控制中心发起的合成",
+      "COMPLETED": "暂无已完成的订单",
+      "FAILED": "没有失败的订单",
+      "CANCELLED": "没有已取消的订单"
+    },
+    "emptyHint": "在资源终端中打开一个可合成的资源，然后选择“合成”。",
+    "loadMore": "加载更多",
+    "activeTitle": "正在合成",
+    "activeNone": "没有忙碌的合成 CPU。"
+  },
+  "cpus": {
+    "subtitle": "网络中的合成 CPU",
+    "unnamed": "合成 CPU",
+    "busy": "忙碌",
+    "idle": "空闲",
+    "offline": "离线",
+    "storage": "存储",
+    "coProcessors": "并行处理单元",
+    "coProcessorsShort_one": "{{count}} 个并行单元",
+    "coProcessorsShort_other": "{{count}} 个并行单元",
+    "selectionMode": "接受",
+    "mode": {
+      "ANY": "任何请求",
+      "PLAYER_ONLY": "仅玩家",
+      "MACHINE_ONLY": "仅机器"
+    },
+    "initiator": "发起者",
+    "inGame": "游戏内",
+    "idleHint": "等待任务。",
+    "offlineHint": "该 CPU 没有供电或没有频道。",
+    "error": "无法加载合成 CPU",
+    "none": "该网络没有合成 CPU",
+    "noneHint": "搭建一个连接到网络的合成 CPU 多方块结构。",
+    "summary": "共 {{total}} 个 · {{busy}} 个忙碌",
+    "live": "实时",
+    "viewAll": "全部合成 CPU"
+  }
+}

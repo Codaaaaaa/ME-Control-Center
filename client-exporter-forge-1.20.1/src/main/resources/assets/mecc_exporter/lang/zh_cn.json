@@ -1,0 +1,9 @@
+{
+  "mecc_exporter.started": "ME 控制中心：正在导出 %s 个图标和 %s 种语言……",
+  "mecc_exporter.progress": "ME 控制中心：%s / %s 个图标",
+  "mecc_exporter.done": "ME 控制中心：已导出 %s 个图标（其中动态 %s 个，跳过 %s 个）和 %s 种语言到 %s",
+  "mecc_exporter.next_step": "把这个文件复制到服务器的 config/mecc/content-packs/ 目录，然后重启服务器。",
+  "mecc_exporter.failed": "ME 控制中心：导出失败：%s",
+  "mecc_exporter.busy": "ME 控制中心：已有一个导出任务在运行。",
+  "mecc_exporter.unknown_locale": "ME 控制中心：未知语言 %s"
+}

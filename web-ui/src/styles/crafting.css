@@ -1,0 +1,405 @@
+/* Crafting, orders, and CPUs (spec sections 9-12). */
+
+.resource-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.resource-label .resource-icon {
+  flex: none;
+  image-rendering: pixelated;
+}
+
+.resource-label-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.resource-label-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-label-amount {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Progress */
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.progress-track {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--background-1);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  transition: width 0.4s ease;
+}
+
+.progress-indeterminate .progress-fill {
+  position: absolute;
+  width: 30%;
+  animation: progress-sweep 1.6s ease-in-out infinite;
+}
+
+@keyframes progress-sweep {
+  from {
+    left: -30%;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+.progress-label {
+  min-width: 48px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Order and CPU cards */
+.order-list,
+.cpu-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.cpu-grid {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.order-card,
+.cpu-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.cpu-card-busy {
+  border-color: rgba(47, 212, 200, 0.45);
+}
+
+.order-main,
+.cpu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cpu-name {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.cpu-location {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.cpu-job {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.order-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.order-facts dt {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.order-facts dd {
+  margin: 0;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-actions,
+.dialog-actions,
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detail-actions {
+  margin-top: 16px;
+}
+
+.order-history {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.order-history li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.order-history time {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.section-note {
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.active-jobs {
+  display: grid;
+  gap: 12px;
+}
+
+.active-job {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.active-job-meta {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* Craft dialog */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(3, 6, 10, 0.72);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(720px, 100%);
+  max-height: calc(100vh - 32px);
+  border: 1px solid var(--border-active);
+  border-radius: var(--radius);
+  background: var(--background-1);
+  box-shadow: 0 0 0 1px rgba(47, 212, 200, 0.08), 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dialog-header h2 {
+  font-size: 16px;
+  letter-spacing: 0.04em;
+}
+
+.dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.craft-amount {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.craft-amount .form-field {
+  flex: 1;
+  margin: 0;
+}
+
+.craft-started {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-left: 3px solid var(--success);
+  border-radius: var(--radius-small);
+  background: rgba(79, 208, 138, 0.08);
+}
+
+.plan {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.plan-table {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+}
+
+.plan-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(3, minmax(70px, 1fr));
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.plan-row > span:not(:first-child) {
+  text-align: right;
+}
+
+.plan-row .resource-label {
+  font-family: var(--font-sans);
+}
+
+.plan-head {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+.plan-row-missing {
+  background: rgba(240, 106, 106, 0.07);
+}
+
+.plan-row-missing > span:last-child {
+  color: var(--danger);
+}
+
+.cpu-choice {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+}
+
+.cpu-choice legend {
+  padding: 0 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.cpu-option {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--touch-target);
+  cursor: pointer;
+}
+
+.cpu-option-disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-indeterminate .progress-fill {
+    animation: none;
+    left: 0;
+    width: 100%;
+    opacity: 0.35;
+  }
+
+  .progress-fill {
+    transition: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .cpu-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .active-job {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .plan-row {
+    grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(56px, 1fr));
+    font-size: 12px;
+  }
+
+  .dialog-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .dialog {
+    max-height: 92vh;
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+
+  .craft-amount {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* Five destinations fit the bottom bar once each takes less room. */
+  .nav .nav-item {
+    padding: 4px 6px;
+  }
+}

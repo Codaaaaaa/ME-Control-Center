@@ -1,0 +1,232 @@
+// Minecraft 1.20.1 / Forge 47.4.16 / AE2 15.4.10 platform adapter.
+// The ONLY module allowed to depend on net.minecraft.*, net.minecraftforge.*, appeng.*.
+// Produces the distributable mod jar: all ME Control Center modules + web UI + relocated libraries.
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'mecc.java-conventions'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'com.gradleup.shadow' version '8.3.9'
+}
+
+def meccSourceProjects = [':core-domain', ':platform-api', ':persistence', ':assets', ':web-server', ':runtime', ':web-ui']
+meccSourceProjects.each { evaluationDependsOn(it) }
+
+base {
+    archivesName = "me-control-center-forge-${minecraft_version}"
+}
+
+minecraft {
+    mappings channel: mapping_channel, version: mapping_version
+    copyIdeResources = true
+
+    runs {
+        configureEach {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'info'
+            // AE2 ships SRG-named mixin refmaps; remap them for the dev environment.
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+
+            mods {
+                mecc {
+                    source sourceSets.main
+                    meccSourceProjects.each { source project(it).sourceSets.main }
+                }
+            }
+        }
+
+        server {
+            args '--nogui'
+            // Dev convenience: reachable from other devices on the LAN. Production default stays 127.0.0.1.
+            property 'mecc.web.host', '0.0.0.0'
+        }
+
+        client {
+        }
+    }
+}
+
+repositories {
+    maven {
+        name = 'ModMaven'
+        url = 'https://modmaven.dev/'
+        content { includeGroup 'appeng' }
+    }
+    // Not exclusiveContent: ForgeGradle serves fg.deobf() outputs from its own local repository
+    // under the same group, which an exclusive filter would hide.
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content { includeGroup 'maven.modrinth' }
+    }
+}
+
+configurations {
+    // ME Control Center modules and their libraries, bundled into the mod jar. In dev runs the ME Control Center modules are
+    // merged into the mod via minecraft.runs.mods and the libraries come from minecraftLibrary.
+    shade {
+        canBeConsumed = false
+        canBeResolved = true
+        attributes {
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+            attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+            attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+        }
+    }
+    compileOnly.extendsFrom shade
+
+    // Libraries that must not be relocated (e.g. JNI bindings). They are nested unchanged under
+    // META-INF/jarjar/ and loaded by Forge's JarJar locator, which picks one copy across all mods.
+    jarJarLibrary {
+        canBeConsumed = false
+        canBeResolved = true
+        transitive = false
+    }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    shade project(':runtime')
+    shade project(':web-ui')
+
+    // Third-party libraries for dev runs (the production jar bundles relocated copies instead).
+    // SLF4J is excluded because Minecraft already provides it.
+    [
+            "org.eclipse.jetty:jetty-server:${jetty_version}",
+            "org.eclipse.jetty.websocket:jetty-websocket-jetty-server:${jetty_version}",
+            "com.fasterxml.jackson.core:jackson-databind:${jackson_version}",
+            "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jackson_version}",
+            "com.fasterxml.jackson.dataformat:jackson-dataformat-toml:${jackson_version}",
+            "org.xerial:sqlite-jdbc:${sqlite_jdbc_version}",
+    ].each {
+        minecraftLibrary(it) { exclude group: 'org.slf4j' }
+    }
+
+    jarJarLibrary "org.xerial:sqlite-jdbc:${sqlite_jdbc_version}"
+
+    // AE2: compiled against the full mod, because following crafting jobs reliably needs the (public) CPU
+    // cluster logic that is not part of the API jar. Such uses are confined to the ae2 package and pinned to
+    // the tested AE2 version; the full mod (plus its required GuideME) is also used for dev runs.
+    compileOnly fg.deobf("appeng:appliedenergistics2-forge:${ae2_version}")
+    runtimeOnly fg.deobf("appeng:appliedenergistics2-forge:${ae2_version}")
+    runtimeOnly fg.deobf("maven.modrinth:guideme:${guideme_version}")
+}
+
+tasks.named('processResources', ProcessResources) {
+    def replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            forge_version          : forge_version,
+            forge_version_range    : forge_version_range,
+            loader_version_range   : loader_version_range,
+            ae2_version_range      : ae2_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description,
+    ]
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties + [project: project]
+    }
+}
+
+def manifestAttributes = [
+        'Specification-Title'     : mod_id,
+        'Specification-Vendor'    : mod_authors,
+        'Specification-Version'   : '1',
+        'Implementation-Title'    : mod_name,
+        'Implementation-Version'  : mod_version,
+        'Implementation-Vendor'   : mod_authors,
+]
+
+tasks.named('jar', Jar) {
+    // Adapter classes only; not distributable. The shadow jar below is the real artifact.
+    archiveClassifier = 'slim'
+    manifest.attributes(manifestAttributes)
+}
+
+def jarJarMetadataDir = layout.buildDirectory.dir('generated/jarjar')
+
+def generateJarJarMetadata = tasks.register('generateJarJarMetadata') {
+    description = 'Writes META-INF/jarjar/metadata.json for the nested jarJarLibrary jars.'
+    def libraries = project.configurations.jarJarLibrary
+    inputs.files(libraries)
+    outputs.dir(jarJarMetadataDir)
+    doLast {
+        def artifacts = libraries.resolvedConfiguration.resolvedArtifacts.collect { artifact ->
+            def id = artifact.moduleVersion.id
+            [
+                    identifier  : [group: id.group, artifact: id.name],
+                    // Accept any newer copy another mod may ship; Forge loads the highest version.
+                    version     : [range: "[${id.version},)", artifactVersion: id.version],
+                    path        : "META-INF/jarjar/${artifact.file.name}",
+                    isObfuscated: false,
+            ]
+        }
+        def file = jarJarMetadataDir.get().file('META-INF/jarjar/metadata.json').asFile
+        file.parentFile.mkdirs()
+        file.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([jars: artifacts]))
+    }
+}
+
+tasks.named('shadowJar') {
+    // Intermediate: relocated and reobfuscated in place, then packaged by modJar below.
+    archiveClassifier = 'all'
+    configurations = [project.configurations.shade]
+    manifest.attributes(manifestAttributes)
+
+    dependencies {
+        exclude(dependency('org.slf4j:.*'))
+        exclude(dependency("org.xerial:sqlite-jdbc:.*"))
+    }
+
+    // Minecraft/Forge already load their own copies of some libraries into the module layer;
+    // relocating avoids split-package crashes and clashes with other mods.
+    def shadowRoot = "${mod_group_id}.shadow"
+    relocate 'org.eclipse.jetty', "${shadowRoot}.jetty"
+    relocate 'com.fasterxml.jackson', "${shadowRoot}.jackson"
+    mergeServiceFiles()
+
+    // Multi-release/JPMS metadata of bundled libraries would make the mod jar look like a
+    // different named module; signatures are invalid after relocation.
+    exclude 'module-info.class'
+    exclude 'META-INF/versions/**'
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+    exclude 'META-INF/maven/**'
+    exclude 'META-INF/LICENSE*', 'META-INF/NOTICE*', 'META-INF/DEPENDENCIES'
+    exclude 'about.html', 'jetty-dir.css'
+}
+
+reobf {
+    shadowJar {}
+}
+
+tasks.named('shadowJar') { finalizedBy 'reobfShadowJar' }
+
+// The distributable mod jar: the reobfuscated shadow jar plus nested JarJar libraries. This is a plain
+// Zip rather than part of shadowJar because Shadow would unpack (and could relocate) nested jars.
+def modJar = tasks.register('modJar', Zip) {
+    group = 'build'
+    description = 'Packages the distributable mod jar with its JarJar libraries.'
+    dependsOn 'reobfShadowJar'
+    archiveBaseName = base.archivesName
+    archiveVersion = project.version.toString()
+    archiveClassifier = ''
+    archiveExtension = 'jar'
+    destinationDirectory = layout.buildDirectory.dir('libs')
+    duplicatesStrategy = DuplicatesStrategy.FAIL
+
+    from(tasks.named('shadowJar').flatMap { it.archiveFile }.map { zipTree(it) })
+    from(generateJarJarMetadata)
+    from(project.configurations.jarJarLibrary) {
+        into 'META-INF/jarjar'
+    }
+}
+
+tasks.named('assemble') { dependsOn modJar }

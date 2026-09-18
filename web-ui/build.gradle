@@ -1,0 +1,78 @@
+// Builds the React/Vite web UI with a pinned Node.js and packages dist/ as classpath resources
+// under mecc-web/, plus an asset index the web server uses to load files from any class loader.
+import com.github.gradle.node.npm.task.NpmTask
+
+plugins {
+    id 'java'
+    id 'com.github.node-gradle.node' version '7.1.0'
+}
+
+// Resources-only jar; declare Java 17 so the Java 17 mod module can consume it.
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+}
+
+node {
+    version = project.property('node_version')
+    download = true
+    npmInstallCommand = 'ci'
+}
+
+tasks.named('npmInstall') {
+    // --include=dev: build tooling must install even when the environment sets NODE_ENV=production.
+    args = ['--include=dev', '--no-audit', '--no-fund']
+}
+
+def webUiInputs = { Task task ->
+    task.inputs.dir('src').withPropertyName('src')
+    task.inputs.dir('public').withPropertyName('public')
+    task.inputs.files('index.html', 'package.json', 'package-lock.json', 'tsconfig.json', 'vite.config.ts')
+            .withPropertyName('config')
+}
+
+def buildWebUi = tasks.register('buildWebUi', NpmTask) {
+    group = 'build'
+    description = 'Type-checks and builds the web UI into dist/.'
+    dependsOn 'npmInstall'
+    args = ['run', 'build']
+    webUiInputs(it)
+    outputs.dir('dist')
+}
+
+def testWebUi = tasks.register('testWebUi', NpmTask) {
+    group = 'verification'
+    description = 'Runs the web UI unit tests.'
+    dependsOn 'npmInstall'
+    args = ['run', 'test']
+    webUiInputs(it)
+    def marker = layout.buildDirectory.file('test-results/web-ui.passed')
+    outputs.file(marker)
+    doLast { marker.get().asFile.text = 'passed\n' }
+}
+
+def bundleDir = layout.buildDirectory.dir('webui-bundle')
+
+def bundleWebUi = tasks.register('bundleWebUi', Sync) {
+    group = 'build'
+    description = 'Copies dist/ to mecc-web/ and writes mecc-web/asset-index.txt.'
+    from(buildWebUi)
+    into(bundleDir.map { it.dir('mecc-web') })
+    doLast {
+        File root = destinationDir
+        List<String> files = []
+        root.eachFileRecurse(groovy.io.FileType.FILES) { File file ->
+            files << root.toPath().relativize(file.toPath()).toString().replace('\\', '/')
+        }
+        new File(root, 'asset-index.txt').setText(files.sort().join('\n') + '\n', 'UTF-8')
+    }
+}
+
+sourceSets {
+    main {
+        resources.srcDir(files(bundleDir).builtBy(bundleWebUi))
+    }
+}
+
+tasks.named('check') {
+    dependsOn testWebUi
+}

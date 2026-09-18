@@ -1,0 +1,104 @@
+// ME Control Center Client Exporter for Minecraft 1.20.1 / Forge (spec section 19).
+// A separate, optional, client-only mod: it renders every item and fluid icon with the real client and
+// writes them, together with the client's language tables, into a content pack the ME Control Center server imports.
+// It has no dependency on the server mod and is never needed to join a server.
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'mecc.java-conventions'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+}
+
+base {
+    archivesName = "me-control-center-client-exporter-forge-${minecraft_version}"
+}
+
+minecraft {
+    mappings channel: mapping_channel, version: mapping_version
+    copyIdeResources = true
+
+    runs {
+        client {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'info'
+            // AE2 ships SRG-named mixin refmaps; remap them for the dev environment.
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+            // Pass -Pmecc.exporter.autorun=en_us,zh_cn to export on the title screen and quit.
+            if (project.hasProperty('mecc.exporter.autorun')) {
+                property 'mecc.exporter.autorun', project.property('mecc.exporter.autorun')
+                property 'mecc.exporter.exitAfter', 'true'
+            }
+
+            mods {
+                mecc_exporter {
+                    source sourceSets.main
+                }
+            }
+        }
+    }
+}
+
+repositories {
+    flatDir {
+        dirs 'dev-mods'
+        content { includeGroup 'devmods' }
+    }
+    maven {
+        name = 'ModMaven'
+        url = 'https://modmaven.dev/'
+        content { includeGroup 'appeng' }
+    }
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content { includeGroup 'maven.modrinth' }
+    }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    // Dev runs only: an AE2 install to export from. The exporter itself knows nothing about AE2.
+    runtimeOnly fg.deobf("appeng:appliedenergistics2-forge:${ae2_version}")
+    runtimeOnly fg.deobf("maven.modrinth:guideme:${guideme_version}")
+
+    // -Pmecc.exporter.gregtech: a GregTech pack as players run it, with Embeddium, to test against. The
+    // release jars go into dev-mods/ by hand (GTMThings is only published on GitHub and CurseForge).
+    if (project.hasProperty('mecc.exporter.gregtech')) {
+        ['gtceu:7.5.3', 'ldlib:1.0.52.a', 'configuration:3.1.0', 'gtmthings:1.6.0', 'embeddium:0.3.31'].each {
+            runtimeOnly fg.deobf("devmods:${it}")
+        }
+    }
+}
+
+tasks.named('processResources', ProcessResources) {
+    def replaceProperties = [
+            minecraft_version_range: minecraft_version_range,
+            forge_version_range    : forge_version_range,
+            loader_version_range   : loader_version_range,
+            mod_id                 : exporter_mod_id,
+            mod_name               : exporter_mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : exporter_mod_description,
+    ]
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties + [project: project]
+    }
+}
+
+tasks.named('jar', Jar) {
+    manifest.attributes([
+            'Specification-Title'   : exporter_mod_id,
+            'Specification-Vendor'  : mod_authors,
+            'Specification-Version' : '1',
+            'Implementation-Title'  : exporter_mod_name,
+            'Implementation-Version': mod_version,
+            'Implementation-Vendor' : mod_authors,
+    ])
+    finalizedBy 'reobfJar'
+}

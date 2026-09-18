@@ -1,0 +1,16 @@
+// Repository implementations and versioned schema migrations (spec section 34).
+// Default backend: embedded SQLite in WAL mode. Services only see the core-domain DataStore port.
+plugins {
+    id 'mecc.platform-neutral'
+}
+
+dependencies {
+    api project(':core-domain')
+
+    // Contains JNI bindings tied to its package names, so it is never relocated. The platform adapter
+    // ships it as a Forge JarJar library, which also de-duplicates it against other mods.
+    implementation "org.xerial:sqlite-jdbc:${sqlite_jdbc_version}"
+
+    // Provided at runtime by Minecraft; never bundled.
+    implementation "org.slf4j:slf4j-api:${slf4j_version}"
+}

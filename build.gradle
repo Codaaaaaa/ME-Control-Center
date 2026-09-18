@@ -1,0 +1,7 @@
+// Root project: modules are configured individually. See settings.gradle for the module list.
+
+tasks.register('buildMod') {
+    group = 'build'
+    description = 'Builds the distributable Forge 1.20.1 mod jar (includes the web UI).'
+    dependsOn ':platform-forge-1.20.1:build'
+}

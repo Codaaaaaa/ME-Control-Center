@@ -1,0 +1,21 @@
+// Version-independent ME Control Center runtime: configuration, thread pools, service wiring, lifecycle.
+// Platform adapters construct a MeccRuntime and forward server start/stop events to it.
+plugins {
+    id 'mecc.platform-neutral'
+}
+
+dependencies {
+    api project(':platform-api')
+    implementation project(':web-server')
+    implementation project(':persistence')
+    implementation project(':assets')
+
+    // Bundled and relocated into the mod jar by the platform adapter.
+    implementation platform("com.fasterxml.jackson:jackson-bom:${jackson_version}")
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-toml'
+
+    // Provided at runtime by Minecraft; never bundled.
+    implementation "org.slf4j:slf4j-api:${slf4j_version}"
+    // Shows ME Control Center and Jetty logs when an integration test fails.
+    testRuntimeOnly "org.slf4j:slf4j-simple:${slf4j_version}"
+}

@@ -1,0 +1,418 @@
+{
+  "app": {
+    "name": "ME Control Center",
+    "tagline": "AE2 web terminal"
+  },
+  "nav": {
+    "label": "Main navigation",
+    "overview": "Overview",
+    "settings": "Settings",
+    "terminal": "Terminal",
+    "crafting": "Crafting",
+    "cpus": "CPUs"
+  },
+  "language": {
+    "label": "Language",
+    "en_us": "English",
+    "zh_cn": "简体中文"
+  },
+  "connection": {
+    "online": "Connected",
+    "offline": "Unreachable",
+    "checking": "Connecting…",
+    "updated": "Updated {{time}}"
+  },
+  "common": {
+    "yes": "Yes",
+    "no": "No",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…",
+    "confirm": "Confirm",
+    "loading": "Loading…",
+    "unsupported": "Not available",
+    "unsupportedHint": "This value cannot be read reliably on this server version.",
+    "never": "Never",
+    "unknownPlayer": "Unknown player",
+    "close": "Close"
+  },
+  "errors": {
+    "offline": "The ME Control Center server did not respond. It may be stopped, or this address may be wrong.",
+    "unauthenticated": "This browser is no longer signed in.",
+    "permission": "Your role does not allow this.",
+    "notFound": "It does not exist or you do not have access.",
+    "unavailable": "The Minecraft server is busy or not running. Try again in a moment.",
+    "rateLimited": "Too many attempts. Wait a few minutes and try again.",
+    "error": "Something went wrong ({{code}}).",
+    "networkOffline": "The ME network is not loaded right now, so live data cannot be read.",
+    "codes": {
+      "NOT_CRAFTABLE": "This network has no pattern that produces this resource.",
+      "CRAFT_CALCULATION_FAILED": "The crafting calculation failed or took too long.",
+      "PLAN_NOT_READY": "The crafting plan is still being calculated.",
+      "PLAN_INCOMPLETE": "Some ingredients are missing and cannot be crafted. The job cannot start.",
+      "PLAN_STALE": "The ME network changed since this plan was calculated. Calculate again.",
+      "PLAN_NOT_FOUND": "This crafting plan expired. Calculate again.",
+      "NO_CRAFTING_CPU": "This ME network has no crafting CPU.",
+      "NO_SUITABLE_CPU": "No crafting CPU can take this job right now: they are busy, offline, too small, or excluded.",
+      "CPU_BUSY": "The selected crafting CPU is busy.",
+      "CPU_OFFLINE": "The selected crafting CPU is offline.",
+      "CPU_TOO_SMALL": "The selected crafting CPU does not have enough crafting storage for this job.",
+      "CPU_NOT_FOUND": "That crafting CPU is no longer part of the network.",
+      "MISSING_INGREDIENTS": "Some ingredients are no longer in storage. Calculate the plan again.",
+      "NOT_RUNNING": "This job is not running anymore.",
+      "CRAFT_REJECTED": "The crafting system refused the job.",
+      "ORDER_NOT_FOUND": "This crafting order does not exist.",
+      "INTERRUPTED": "ME Control Center stopped while this order was being submitted. Check the crafting CPUs in game.",
+      "TRACKING_LOST": "This crafting CPU type cannot be followed across a server restart.",
+      "JOB_LOST": "The job has not been seen on any crafting CPU for a long time; its CPU may have been removed.",
+      "OUTCOME_NOT_REPORTED": "The job ended, but this crafting CPU type does not report whether it completed."
+    }
+  },
+  "pair": {
+    "title": "Pair this browser",
+    "subtitle": "Connect this browser to your Minecraft account. No password needed.",
+    "step1": "In game, run",
+    "step2": "Enter the key shown in chat. It expires after a few minutes and works once.",
+    "keyLabel": "Pairing key",
+    "deviceNameLabel": "Device name (optional)",
+    "deviceNamePlaceholder": "e.g. My phone",
+    "submit": "Pair browser",
+    "submitting": "Pairing…",
+    "invalid": "That key is invalid, expired, or already used. Run /mecc pair again for a new one.",
+    "footnote": "This browser stays signed in until you revoke it in Settings or with /mecc revoke."
+  },
+  "account": {
+    "signedInAs": "Signed in as {{name}}",
+    "logout": "Sign out",
+    "serverAdmin": "Server admin"
+  },
+  "overview": {
+    "title": "Overview",
+    "subtitle": "What is happening in your ME network right now",
+    "network": "Network",
+    "serverSection": "Server"
+  },
+  "network": {
+    "status": "ME network",
+    "state": {
+      "ONLINE": "Online",
+      "DEGRADED": "Degraded",
+      "OFFLINE": "Offline",
+      "CONFLICT": "Needs attention"
+    },
+    "reason": {
+      "NOT_DISCOVERED_YET": "ME Control Center is still scanning loaded networks.",
+      "NOT_LOADED": "None of its Wireless Access Points is loaded. Its chunks may be unloaded, or the access points were removed.",
+      "UNPOWERED": "The network has no power.",
+      "BOOTING": "The network is booting and assigning channels.",
+      "CONTROLLER_CONFLICT": "The network has conflicting ME controllers.",
+      "SPLIT": "This network's access points are now in separate ME networks. Live access is paused until they are connected again.",
+      "MERGED": "This network is now connected to another ME Control Center network. Live access is paused until they are separated again, so neither network's members gain access to the other."
+    },
+    "energy": "Energy",
+    "energyUsage": "Usage / input",
+    "perTick": "{{value}}/t",
+    "channels": "Channels in use",
+    "cpus": "Crafting CPUs",
+    "cpusValue": "{{total}} total · {{busy}} busy",
+    "activeJobs": "Active jobs",
+    "resourceTypes": "Resource types",
+    "providers": "Pattern providers",
+    "nodes": "Grid nodes",
+    "anchors": "Wireless access points",
+    "anchorsValue": "{{active}} of {{total}} active",
+    "lastSeen": "Last seen",
+    "updated": "Status from {{time}}",
+    "owner": "Owner",
+    "role": "Your role",
+    "adminOverride": "Admin access",
+    "manage": "Manage network"
+  },
+  "roles": {
+    "VIEWER": "Viewer",
+    "OPERATOR": "Operator",
+    "MANAGER": "Manager",
+    "OWNER": "Owner"
+  },
+  "claim": {
+    "title": "Enroll a network",
+    "subtitle": "Loaded ME networks with a Wireless Access Point you placed. Enrolling makes you the network's owner in ME Control Center.",
+    "adminSubtitle": "As server admin you can also enroll networks placed by other players.",
+    "empty": "No enrollable network found.",
+    "emptyHelp": "Place a Wireless Access Point on your ME network, make sure its chunk is loaded, then refresh.",
+    "refresh": "Refresh",
+    "nameLabel": "Network name",
+    "namePlaceholder": "e.g. Main Base",
+    "submit": "Enroll",
+    "submitting": "Enrolling…",
+    "nodes": "{{count}} nodes",
+    "unpowered": "Unpowered",
+    "placedBy": "Placed by {{name}}",
+    "notYours": "Placed by another player"
+  },
+  "networks": {
+    "noneTitle": "No networks yet",
+    "noneBody": "You do not have access to any ME network. Enroll one you built, or ask its owner to share it with you.",
+    "title": "Networks",
+    "subtitle": "ME networks you can access",
+    "open": "Manage"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Devices, networks, and preferences",
+    "tabs": {
+      "devices": "Devices",
+      "networks": "Networks",
+      "preferences": "Preferences"
+    }
+  },
+  "devices": {
+    "title": "Paired devices",
+    "subtitle": "Browsers signed in to your account. Revoke any you do not recognize.",
+    "current": "This device",
+    "lastUsed": "Last used {{time}}",
+    "paired": "Paired {{time}}",
+    "rename": "Rename",
+    "revoke": "Revoke",
+    "signOutHere": "Sign out",
+    "revokeOthers": "Revoke all other devices",
+    "revokedCount_one": "Revoked {{count}} device.",
+    "revokedCount_other": "Revoked {{count}} devices."
+  },
+  "preferences": {
+    "language": "Language",
+    "languageHint": "Independent of the Minecraft server language."
+  },
+  "networkSettings": {
+    "back": "Back to settings",
+    "general": "General",
+    "nameLabel": "Name",
+    "members": "Members",
+    "membersHint": "Players need to have joined the server or used ME Control Center before they can be added.",
+    "addMember": "Add member",
+    "playerLabel": "Player name",
+    "roleLabel": "Role",
+    "add": "Add",
+    "primaryOwner": "Primary owner",
+    "you": "You",
+    "remove": "Remove",
+    "leave": "Leave network",
+    "leaveHint": "You will lose access until an owner adds you again.",
+    "dangerZone": "Danger zone",
+    "delete": "Remove from ME Control Center",
+    "deleteHint": "Deletes the ME Control Center record and all memberships. Nothing in Minecraft is changed; the network can be enrolled again.",
+    "anchors": "Identity anchors",
+    "anchorsHint": "ME Control Center recognizes this network by these Wireless Access Points.",
+    "anchorActive": "Active",
+    "anchorInactive": "Inactive",
+    "anchorUnloaded": "Not loaded",
+    "roleHelp": "Viewers see the network. Operators can also craft. Managers also edit patterns and providers. Owners also manage members."
+  },
+  "status": {
+    "loading": "Loading server status…",
+    "errorTitle": "Unable to load server status",
+    "error": {
+      "network": "The ME Control Center server did not respond. It may be stopped, or this address may be wrong.",
+      "http": "The server returned an error ({{code}}).",
+      "schema": "The server sent an unexpected response. The web UI and server versions may not match."
+    }
+  },
+  "server": {
+    "title": "Minecraft server",
+    "state": {
+      "RUNNING": "Online",
+      "BUSY": "Busy",
+      "UNAVAILABLE": "Unavailable"
+    },
+    "busyHint": "The server thread did not answer in time. Live values are hidden rather than guessed.",
+    "unavailableHint": "The Minecraft server is stopping or not running.",
+    "players": "Players",
+    "tps": "TPS",
+    "mspt": "Tick time",
+    "type": "Type",
+    "dedicated": "Dedicated",
+    "integrated": "Integrated",
+    "motd": "MOTD"
+  },
+  "platform": {
+    "title": "Platform",
+    "minecraft": "Minecraft",
+    "loader": "Loader",
+    "adapter": "Adapter"
+  },
+  "mecc": {
+    "title": "ME Control Center",
+    "version": "Version",
+    "uptime": "Uptime",
+    "roundTrip": "Server-thread round trip",
+    "pending": "Queued server tasks"
+  },
+  "ae2": {
+    "title": "Applied Energistics 2",
+    "state": "State",
+    "loaded": "Loaded",
+    "notLoaded": "Not loaded",
+    "version": "Version",
+    "tested": "Tested",
+    "untested": "Untested (tested against {{version}})"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "back": "Back to overview"
+  },
+  "terminal": {
+    "search": "Search resources",
+    "searchPlaceholder": "Search: iron · @mekanism · #forge:ingots · craftable:true",
+    "sort": "Sort",
+    "sorts": {
+      "NAME": "Name",
+      "AMOUNT": "Amount",
+      "MOD": "Mod",
+      "CRAFTABLE": "Craftable first"
+    },
+    "ascending": "Ascending",
+    "descending": "Descending",
+    "type": "Resource type",
+    "types": {
+      "ALL": "All",
+      "ITEM": "Items",
+      "FLUID": "Fluids",
+      "OTHER": "Other"
+    },
+    "density": "Grid density",
+    "densities": {
+      "COMPACT": "Compact",
+      "AE2": "AE2-like",
+      "COMFORTABLE": "Comfortable"
+    },
+    "count_one": "{{count}} resource",
+    "count_other": "{{count}} resources",
+    "updated": "updated {{time}}",
+    "loading": "Reading network storage…",
+    "empty": "This network stores nothing yet",
+    "emptyHint": "Items added to the ME system appear here within a few seconds.",
+    "noMatches": "Nothing matches your search",
+    "noMatchesHint": "Try a shorter term, a mod with @, or a tag with #.",
+    "errorTitle": "Unable to load resources",
+    "unavailableTitle": "The ME network is not available",
+    "craftable": "Craftable",
+    "crafting": "Currently crafting",
+    "craftingAmount": "Crafting {{amount}}",
+    "detail": "Resource details",
+    "mod": "Mod",
+    "registryId": "Registry ID",
+    "variant": "Variant",
+    "variantHint": "This resource carries extra data (NBT) that makes it distinct.",
+    "tags": "Tags",
+    "snapshotAge": "Snapshot"
+  },
+  "crafting": {
+    "subtitle": "Crafting orders from the web",
+    "craft": "Craft",
+    "needOperator": "Crafting needs the Operator role on this network.",
+    "dialogTitle": "Craft",
+    "amount": "Amount",
+    "amountIn": "Amount ({{unit}})",
+    "calculate": "Calculate",
+    "calculating": "Calculating…",
+    "calculatingLong": "Calculating the crafting plan. Large recipe trees can take a while…",
+    "planTitle": "Crafting plan",
+    "planReady": "Ready to craft",
+    "planMissing_one": "{{count}} ingredient missing",
+    "planMissing_other": "{{count}} ingredients missing",
+    "planMissingHint": "Missing ingredients must be added to storage (or made craftable) before this job can start.",
+    "bytes": "Needs {{bytes}} of crafting storage",
+    "multiplePaths": "Several recipes were possible",
+    "resource": "Resource",
+    "stored": "From storage",
+    "toCraft": "To craft",
+    "missing": "Missing",
+    "truncated": "Showing {{shown}} of {{total}} lines.",
+    "cpu": "Crafting CPU",
+    "cpuAuto": "Automatic",
+    "unsuitable": {
+      "BUSY": "Busy",
+      "OFFLINE": "Offline",
+      "TOO_SMALL": "Too small",
+      "EXCLUDED": "Machines only"
+    },
+    "start": "Start craft",
+    "starting": "Starting…",
+    "started": "Crafting started",
+    "startedHint": "Running on {{cpu}}. You can follow it on the Crafting page, even after closing this browser.",
+    "viewOrders": "View crafting orders",
+    "progressUnknown": "Working…",
+    "estimated": "Estimated",
+    "state": {
+      "SUBMITTING": "Submitting",
+      "RUNNING": "Running",
+      "COMPLETED": "Completed",
+      "CANCELLED": "Cancelled",
+      "FAILED": "Failed",
+      "UNKNOWN": "Unknown"
+    },
+    "unobserved": "The crafting CPU running this job is not loaded right now. Progress resumes when it is.",
+    "creator": "Requested by",
+    "created": "Created",
+    "elapsed": "Elapsed",
+    "duration": "Duration",
+    "history": "History",
+    "hideHistory": "Hide history",
+    "historyError": "Unable to load the history.",
+    "craftAgain": "Craft again",
+    "cancel": "Cancel craft",
+    "event": {
+      "CREATED": "Requested",
+      "STARTED": "Started",
+      "REJECTED": "Refused by the crafting system",
+      "CANCELLED": "Cancelled",
+      "COMPLETED": "Completed",
+      "UNKNOWN": "Outcome unknown"
+    },
+    "tabs": {
+      "ACTIVE": "Active",
+      "COMPLETED": "Completed",
+      "FAILED": "Failed",
+      "CANCELLED": "Cancelled"
+    },
+    "ordersError": "Unable to load crafting orders",
+    "empty": {
+      "ACTIVE": "Nothing is being crafted from ME Control Center",
+      "COMPLETED": "No completed orders yet",
+      "FAILED": "No failed orders",
+      "CANCELLED": "No cancelled orders"
+    },
+    "emptyHint": "Open a craftable resource in the Terminal and choose Craft.",
+    "loadMore": "Load more",
+    "activeTitle": "Active crafting",
+    "activeNone": "No crafting CPU is busy."
+  },
+  "cpus": {
+    "subtitle": "Crafting CPUs of the network",
+    "unnamed": "Crafting CPU",
+    "busy": "Busy",
+    "idle": "Idle",
+    "offline": "Offline",
+    "storage": "Storage",
+    "coProcessors": "Co-processors",
+    "coProcessorsShort_one": "{{count}} co-processor",
+    "coProcessorsShort_other": "{{count}} co-processors",
+    "selectionMode": "Accepts",
+    "mode": {
+      "ANY": "Any request",
+      "PLAYER_ONLY": "Players only",
+      "MACHINE_ONLY": "Machines only"
+    },
+    "initiator": "Started by",
+    "inGame": "In game",
+    "idleHint": "Waiting for a job.",
+    "offlineHint": "This CPU has no power or no channel.",
+    "error": "Unable to load crafting CPUs",
+    "none": "This network has no crafting CPU",
+    "noneHint": "Build a crafting CPU multiblock connected to the network.",
+    "summary": "{{total}} total · {{busy}} busy",
+    "live": "live",
+    "viewAll": "All crafting CPUs"
+  }
+}

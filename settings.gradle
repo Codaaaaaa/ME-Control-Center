@@ -1,0 +1,29 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven {
+            name = 'MinecraftForge'
+            url = 'https://maven.minecraftforge.net/'
+        }
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
+}
+
+rootProject.name = 'me-control-center'
+
+// Version-independent modules. These must never see Minecraft, Forge, or AE2.
+include 'core-domain'
+include 'platform-api'
+include 'persistence'
+include 'assets'
+include 'web-server'
+include 'runtime'
+include 'web-ui'
+
+// Version-specific platform adapters. Only these may depend on Minecraft/loader/AE2.
+include 'platform-forge-1.20.1'
+// Optional client-side helper (spec section 19): exports rendered icons and language tables for the server.
+include 'client-exporter-forge-1.20.1'

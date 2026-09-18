@@ -1,0 +1,7 @@
+// Version-independent ME Control Center domain: DTOs, config model, service ports, error codes.
+// MUST NOT depend on net.minecraft.*, net.minecraftforge.*, appeng.* (spec section 42).
+plugins {
+    id 'mecc.platform-neutral'
+}
+
+// Intentionally no runtime dependencies.
