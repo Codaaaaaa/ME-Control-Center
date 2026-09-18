@@ -69,8 +69,14 @@ export async function getJson<T>(path: string, schema: z.ZodType<T>, signal?: Ab
   return parseResponse(schema, await request('GET', path, undefined, signal));
 }
 
-export async function sendJson<T>(method: Exclude<Method, 'GET'>, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
-  return parseResponse(schema, await request(method, path, body));
+export async function sendJson<T>(
+  method: Exclude<Method, 'GET'>,
+  path: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+  signal?: AbortSignal,
+): Promise<T> {
+  return parseResponse(schema, await request(method, path, body, signal));
 }
 
 export async function sendNoContent(method: Exclude<Method, 'GET'>, path: string, body?: unknown): Promise<void> {

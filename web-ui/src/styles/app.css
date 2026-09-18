@@ -538,3 +538,13 @@
     font-size: 20px;
   }
 }
+
+/* Shown when the server was updated while this page stayed open. */
+.update-notice {
+  margin-bottom: 16px;
+  border-color: var(--border-active);
+}
+
+.update-notice strong {
+  color: var(--accent-strong);
+}

@@ -129,6 +129,53 @@ final class Migrations {
                         details           TEXT NOT NULL DEFAULT '{}'
                     );
                     CREATE INDEX order_events_order_id ON order_events (order_id, id)
+                    """),
+            new Migration(3, "pattern drafts and deployment history", """
+                    CREATE TABLE pattern_drafts (
+                        id                TEXT PRIMARY KEY,
+                        owner_uuid        TEXT NOT NULL REFERENCES users (player_uuid),
+                        network_id        TEXT REFERENCES web_networks (id) ON DELETE SET NULL,
+                        name              TEXT NOT NULL,
+                        description       TEXT NOT NULL DEFAULT '',
+                        type              TEXT NOT NULL,
+                        substitutes       INTEGER NOT NULL DEFAULT 0,
+                        fluid_substitutes INTEGER NOT NULL DEFAULT 0,
+                        recipe_id         TEXT,
+                        created_at        INTEGER NOT NULL,
+                        updated_at        INTEGER NOT NULL
+                    );
+                    CREATE INDEX pattern_drafts_owner ON pattern_drafts (owner_uuid, updated_at);
+
+                    CREATE TABLE pattern_draft_stacks (
+                        draft_id    TEXT NOT NULL REFERENCES pattern_drafts (id) ON DELETE CASCADE,
+                        role        TEXT NOT NULL,
+                        slot        INTEGER NOT NULL,
+                        resource_id TEXT NOT NULL,
+                        amount      INTEGER NOT NULL,
+                        PRIMARY KEY (draft_id, role, slot)
+                    );
+
+                    CREATE TABLE pattern_deployments (
+                        id              TEXT PRIMARY KEY,
+                        network_id      TEXT NOT NULL REFERENCES web_networks (id) ON DELETE CASCADE,
+                        actor_uuid      TEXT NOT NULL REFERENCES users (player_uuid),
+                        device_id       TEXT,
+                        draft_id        TEXT,
+                        type            TEXT NOT NULL,
+                        action          TEXT NOT NULL,
+                        output_id       TEXT,
+                        output_names    TEXT NOT NULL DEFAULT '{}',
+                        output_mod_id   TEXT,
+                        output_icon_key TEXT,
+                        unit_symbol     TEXT,
+                        unit_amount     INTEGER,
+                        provider_id     TEXT,
+                        provider_name   TEXT,
+                        slot            INTEGER,
+                        error_code      TEXT,
+                        at              INTEGER NOT NULL
+                    );
+                    CREATE INDEX pattern_deployments_network_at ON pattern_deployments (network_id, at)
                     """));
 
     private Migrations() {

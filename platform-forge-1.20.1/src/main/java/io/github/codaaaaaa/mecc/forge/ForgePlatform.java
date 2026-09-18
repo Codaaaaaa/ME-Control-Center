@@ -4,11 +4,15 @@ import io.github.codaaaaaa.mecc.core.status.PlatformInfo;
 import io.github.codaaaaaa.mecc.forge.ae2.Ae2CraftingPlatform;
 import io.github.codaaaaaa.mecc.forge.ae2.Ae2Integration;
 import io.github.codaaaaaa.mecc.forge.ae2.Ae2NetworkPlatform;
+import io.github.codaaaaaa.mecc.forge.ae2.Ae2PatternPlatform;
+import io.github.codaaaaaa.mecc.forge.ae2.Ae2RecipePlatform;
 import io.github.codaaaaaa.mecc.forge.ae2.Ae2StoragePlatform;
 import io.github.codaaaaaa.mecc.platform.Ae2Platform;
 import io.github.codaaaaaa.mecc.platform.AssetPlatform;
 import io.github.codaaaaaa.mecc.platform.CraftingPlatform;
 import io.github.codaaaaaa.mecc.platform.NetworkPlatform;
+import io.github.codaaaaaa.mecc.platform.PatternPlatform;
+import io.github.codaaaaaa.mecc.platform.RecipePlatform;
 import io.github.codaaaaaa.mecc.platform.PlayerPlatform;
 import io.github.codaaaaaa.mecc.platform.ServerInfoPlatform;
 import io.github.codaaaaaa.mecc.platform.StoragePlatform;
@@ -42,6 +46,8 @@ final class ForgePlatform implements MeccPlatform {
     private final NetworkPlatform networks;
     private final Ae2StoragePlatform storage;
     private final CraftingPlatform crafting;
+    private final PatternPlatform patterns;
+    private final RecipePlatform recipes;
     private final AssetPlatform assets;
     private final Path dataDirectory;
     private final Ae2Platform ae2;
@@ -61,6 +67,8 @@ final class ForgePlatform implements MeccPlatform {
         this.networks = new Ae2NetworkPlatform(server);
         this.storage = new Ae2StoragePlatform(server);
         this.crafting = new Ae2CraftingPlatform(server, storage);
+        this.patterns = new Ae2PatternPlatform(server, storage);
+        this.recipes = new Ae2RecipePlatform(server, storage);
         this.assets = new ForgeAssets();
         this.ae2 = new Ae2Integration();
     }
@@ -88,6 +96,16 @@ final class ForgePlatform implements MeccPlatform {
     @Override
     public CraftingPlatform crafting() {
         return crafting;
+    }
+
+    @Override
+    public PatternPlatform patterns() {
+        return patterns;
+    }
+
+    @Override
+    public RecipePlatform recipes() {
+        return recipes;
     }
 
     @Override

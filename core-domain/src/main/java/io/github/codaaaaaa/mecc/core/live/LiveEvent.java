@@ -23,6 +23,8 @@ public record LiveEvent(String type, Instant timestamp, UUID networkId, Object p
     public static final String ORDER_UPDATED = "crafting.order.updated";
     public static final String ORDER_COMPLETED = "crafting.order.completed";
     public static final String ORDER_FAILED = "crafting.order.failed";
+    /** A pattern was encoded or deployed. Payload: {@code {deploymentId, action, providerId}}. */
+    public static final String PATTERN_DEPLOYED = "pattern.deployed";
     public static final String ERROR = "error";
     public static final String PONG = "pong";
 

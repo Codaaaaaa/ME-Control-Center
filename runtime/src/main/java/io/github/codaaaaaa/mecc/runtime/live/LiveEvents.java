@@ -190,6 +190,11 @@ public final class LiveEvents implements LiveEventService, CraftingTracker.Liste
         return text.toString();
     }
 
+    /** Sends an event about a network to everyone subscribed to it, e.g. a deployed pattern. */
+    public void networkEvent(UUID networkId, LiveEvent event) {
+        broadcast(networkId, event);
+    }
+
     private void broadcast(UUID networkId, LiveEvent event) {
         for (LiveConnection connection : connections) {
             if (connection.subscriptions.containsKey(networkId)) {

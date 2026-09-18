@@ -21,6 +21,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
     if (failureKind(me.error) === 'unauthenticated') {
       return <PairPage />;
     }
+    // A failed background refresh (e.g. the server restarting) must not tear down the open page and its dialogs.
+    if (me.data) {
+      return <>{children}</>;
+    }
     return (
       <div className="gate">
         <ErrorNotice

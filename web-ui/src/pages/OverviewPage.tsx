@@ -30,7 +30,7 @@ export function OverviewPage() {
           <div className="card-wide">
             <LoadingNotice />
           </div>
-        ) : networks.isError ? (
+        ) : networks.isError && !networks.data ? (
           <div className="card-wide">
             <ErrorNotice
               title={t('networks.title')}

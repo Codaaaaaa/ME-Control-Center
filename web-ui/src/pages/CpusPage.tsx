@@ -25,7 +25,7 @@ export function CpusPage() {
       </div>
       {networks.isPending ? (
         <LoadingNotice />
-      ) : networks.isError ? (
+      ) : networks.isError && !networks.data ? (
         <ErrorNotice title={t('networks.title')} error={networks.error} onRetry={() => void networks.refetch()} />
       ) : selected ? (
         <Cpus networkId={selected.id} />

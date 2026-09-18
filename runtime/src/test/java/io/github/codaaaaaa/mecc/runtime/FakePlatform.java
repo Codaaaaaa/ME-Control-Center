@@ -9,6 +9,10 @@ import io.github.codaaaaaa.mecc.core.networks.GridStatus;
 import io.github.codaaaaaa.mecc.core.assets.AssetPack;
 import io.github.codaaaaaa.mecc.core.error.ErrorCode;
 import io.github.codaaaaaa.mecc.core.error.MeccException;
+import io.github.codaaaaaa.mecc.core.patterns.PatternDefinition;
+import io.github.codaaaaaa.mecc.core.patterns.PatternIssue;
+import io.github.codaaaaaa.mecc.core.patterns.PatternStack;
+import io.github.codaaaaaa.mecc.core.patterns.PatternType;
 import io.github.codaaaaaa.mecc.core.resources.ResourceDescriptor;
 import io.github.codaaaaaa.mecc.core.resources.ResourceId;
 import io.github.codaaaaaa.mecc.core.resources.ResourceIndex;
@@ -20,6 +24,9 @@ import io.github.codaaaaaa.mecc.platform.Ae2Platform;
 import io.github.codaaaaaa.mecc.platform.AssetPlatform;
 import io.github.codaaaaaa.mecc.platform.CraftingPlatform;
 import io.github.codaaaaaa.mecc.platform.NetworkPlatform;
+import io.github.codaaaaaa.mecc.platform.PatternPlatform;
+import io.github.codaaaaaa.mecc.platform.RecipePlatform;
+import io.github.codaaaaaa.mecc.platform.RecipePlatform.PatternRecipe;
 import io.github.codaaaaaa.mecc.platform.PlayerPlatform;
 import io.github.codaaaaaa.mecc.platform.ServerInfoPlatform;
 import io.github.codaaaaaa.mecc.platform.StoragePlatform;
@@ -421,7 +428,7 @@ public final class FakePlatform implements MeccPlatform, AutoCloseable {
             return CancelOutcome.CANCELLED;
         }
 
-        private void requireGrid(String gridKey) {
+        void requireGrid(String gridKey) {
             if (grids.stream().noneMatch(grid -> grid.runtimeKey().equals(gridKey))) {
                 throw new MeccException(ErrorCode.NETWORK_OFFLINE, "The ME network is not loaded right now");
             }
@@ -458,6 +465,233 @@ public final class FakePlatform implements MeccPlatform, AutoCloseable {
         return new ResourceDescriptor(ResourceId.of(type, namespace, path), key, ResourceText.translatable(key, List.of()),
                 namespace, type.equals("fluid") ? new ResourceDescriptor.ResourceUnit("B", 1000) : null,
                 type + "/" + namespace + "/" + path);
+    }
+
+    // --- patterns and recipes -----------------------------------------------------------------------
+
+    /** Pattern providers, Blank Patterns, and encoding. Mutate from tests; read on the fake server thread. */
+    public final FakePatterns patterns = new FakePatterns();
+    /** Recipes and registered resources. */
+    public final FakeRecipes recipes = new FakeRecipes();
+
+    @Override
+    public PatternPlatform patterns() {
+        return patterns;
+    }
+
+    @Override
+    public RecipePlatform recipes() {
+        return recipes;
+    }
+
+    public static final class FakeProvider {
+        public final String id;
+        public volatile String name;
+        /** The multiblock it serves, or {@code null} for a plain provider. */
+        public volatile ResourceDescriptor machine;
+        public volatile boolean renamable = true;
+        public final PatternPlatform.StoredPattern[] slots;
+        public volatile boolean online = true;
+        /** The next deployment into this provider is refused after the Blank Pattern was taken. */
+        public volatile boolean refuseNext;
+
+        FakeProvider(String id, String name, int slots) {
+            this.id = id;
+            this.name = name;
+            this.slots = new PatternPlatform.StoredPattern[slots];
+        }
+
+        public int used() {
+            return (int) java.util.Arrays.stream(slots).filter(java.util.Objects::nonNull).count();
+        }
+    }
+
+    public final class FakeRecipes implements RecipePlatform {
+        public final List<PatternRecipe> list = new CopyOnWriteArrayList<>();
+        public final List<ResourceDescriptor> registry = new CopyOnWriteArrayList<>();
+        public final java.util.concurrent.atomic.AtomicInteger captures = new java.util.concurrent.atomic.AtomicInteger();
+
+        public void register(String type, String namespace, String path) {
+            registry.add(descriptor(type, namespace, path));
+        }
+
+        @Override
+        public RecipeCapture captureRecipes() {
+            requireServerThread();
+            captures.incrementAndGet();
+            List<PatternRecipe> copy = List.copyOf(list);
+            return () -> copy.size();
+        }
+
+        @Override
+        public RecipeBook describe(RecipeCapture capture) {
+            if (Thread.currentThread() == serverThread.get()) {
+                throw new IllegalStateException("describe() must not run on the server thread");
+            }
+            int size = registry.size();
+            long[] crafting = new long[size];
+            java.util.Arrays.fill(crafting, ResourceIndex.NOT_CRAFTING);
+            return new RecipeBook(List.copyOf(list), new ResourceIndex(Instant.now(),
+                    registry.toArray(new ResourceDescriptor[0]), new long[size], new boolean[size], crafting));
+        }
+
+        @Override
+        public int recipesVersion() {
+            return tagsVersion;
+        }
+    }
+
+    public final class FakePatterns implements PatternPlatform {
+        public final List<FakeProvider> providers = new CopyOnWriteArrayList<>();
+        public final java.util.concurrent.atomic.AtomicLong blankPatterns = new java.util.concurrent.atomic.AtomicLong();
+        /** Encoded patterns delivered into ME storage. */
+        public final List<PatternDefinition> inStorage = new CopyOnWriteArrayList<>();
+
+        public FakeProvider addProvider(String id, String name, int slots) {
+            FakeProvider provider = new FakeProvider(id, name, slots);
+            providers.add(provider);
+            return provider;
+        }
+
+        @Override
+        public ProviderCapture captureProviders(String gridKey) {
+            requireServerThread();
+            crafting.requireGrid(gridKey);
+            List<ProviderState> states = new java.util.ArrayList<>();
+            for (FakeProvider provider : providers) {
+                List<StoredPattern> stored = java.util.Arrays.stream(provider.slots).filter(java.util.Objects::nonNull).toList();
+                ResourceDescriptor kind = provider.machine == null ? descriptor("item", "ae2", "pattern_provider")
+                        : descriptor("item", "gtceu", "me_pattern_buffer");
+                states.add(new ProviderState(provider.id, ResourceText.literal(provider.name),
+                        provider.machine == null ? kind : provider.machine, kind, provider.machine, null, provider.renamable,
+                        new BlockLocation("minecraft:overworld", 1, 2, 3), provider.online, provider.slots.length,
+                        provider.machine == null ? 0 : null, provider.machine == null ? false : null,
+                        provider.machine == null ? "NONE" : null, true, stored));
+            }
+            return new ProviderCapture(Instant.now(), states, blankPatterns.get());
+        }
+
+        @Override
+        public RenameOutcome rename(String gridKey, String providerId, String name) {
+            requireServerThread();
+            crafting.requireGrid(gridKey);
+            FakeProvider provider = providers.stream().filter(candidate -> candidate.id.equals(providerId)).findFirst().orElse(null);
+            if (provider == null) {
+                return RenameOutcome.NOT_FOUND;
+            }
+            if (!provider.renamable) {
+                return RenameOutcome.NOT_RENAMABLE;
+            }
+            provider.name = name.isEmpty() ? "Pattern Provider" : name;
+            return RenameOutcome.RENAMED;
+        }
+
+        @Override
+        public PatternCheck check(String gridKey, PatternDefinition definition) {
+            requireServerThread();
+            crafting.requireGrid(gridKey);
+            Built built = build(definition);
+            return new PatternCheck(built.issues, built.outputs, built.recipeId, blankPatterns.get());
+        }
+
+        private record Built(List<PatternIssue> issues, List<PatternAmount> outputs, String recipeId) {
+        }
+
+        private Built build(PatternDefinition definition) {
+            List<PatternIssue> issues = new java.util.ArrayList<>();
+            for (int i = 0; i < definition.inputs().size(); i++) {
+                PatternStack stack = definition.inputs().get(i);
+                if (stack != null && !known(stack.resource())) {
+                    issues.add(new PatternIssue(PatternIssue.UNKNOWN_RESOURCE, "inputs[" + i + "]", "unknown"));
+                }
+            }
+            if (!issues.isEmpty()) {
+                return new Built(issues, List.of(), null);
+            }
+            if (definition.type() == PatternType.PROCESSING) {
+                return new Built(List.of(), definition.presentOutputs().stream()
+                        .map(stack -> new PatternAmount(describe(stack.resource()), stack.amount())).toList(), null);
+            }
+            for (PatternRecipe recipe : recipes.list) {
+                if (recipe.type() == definition.type() && matches(recipe, definition)
+                        && (definition.recipeId() == null ? definition.type() != PatternType.STONECUTTING
+                        : definition.recipeId().equals(recipe.id()))) {
+                    return new Built(List.of(), List.of(new PatternAmount(recipe.output(), recipe.outputAmount())), recipe.id());
+                }
+            }
+            return new Built(List.of(new PatternIssue(PatternIssue.NO_MATCHING_RECIPE, "recipeId", "no recipe")), List.of(), null);
+        }
+
+        private boolean known(ResourceId id) {
+            return recipes.registry.stream().anyMatch(descriptor -> descriptor.id().equals(id))
+                    || storage.stream().anyMatch(entry -> entry.descriptor().id().equals(id));
+        }
+
+        private ResourceDescriptor describe(ResourceId id) {
+            return recipes.registry.stream().filter(descriptor -> descriptor.id().equals(id)).findFirst()
+                    .orElseGet(() -> descriptor(id.type(), id.namespace(), id.path()));
+        }
+
+        private static boolean matches(PatternRecipe recipe, PatternDefinition definition) {
+            if (recipe.slots().size() != definition.inputs().size()) {
+                return false;
+            }
+            for (int i = 0; i < recipe.slots().size(); i++) {
+                PatternStack stack = definition.inputs().get(i);
+                List<ResourceDescriptor> options = recipe.slots().get(i);
+                if (stack == null ? !options.isEmpty()
+                        : options.stream().noneMatch(option -> option.id().equals(stack.resource()))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public EncodeOutcome encode(String gridKey, PatternDefinition definition, String providerId, PlayerProfile actor) {
+            requireServerThread();
+            crafting.requireGrid(gridKey);
+            Built built = build(definition);
+            if (!built.issues.isEmpty()) {
+                return EncodeOutcome.invalid(built.issues, built.outputs);
+            }
+            FakeProvider target = null;
+            int slot = -1;
+            if (providerId != null) {
+                target = providers.stream().filter(provider -> provider.id.equals(providerId)).findFirst().orElse(null);
+                if (target == null) {
+                    return EncodeOutcome.failed("PROVIDER_NOT_FOUND", built.outputs, Map.of());
+                }
+                if (!target.online) {
+                    return EncodeOutcome.failed("PROVIDER_OFFLINE", built.outputs, Map.of());
+                }
+                for (int i = 0; i < target.slots.length && slot < 0; i++) {
+                    if (target.slots[i] == null) {
+                        slot = i;
+                    }
+                }
+                if (slot < 0) {
+                    return EncodeOutcome.failed("PROVIDER_FULL", built.outputs, Map.of());
+                }
+            }
+            if (blankPatterns.get() < 1) {
+                return EncodeOutcome.failed("NO_BLANK_PATTERN", built.outputs, Map.of());
+            }
+            blankPatterns.decrementAndGet();
+            if (target == null) {
+                inStorage.add(definition);
+                return EncodeOutcome.encoded(built.outputs, null, null, null);
+            }
+            if (target.refuseNext) {
+                target.refuseNext = false;
+                blankPatterns.incrementAndGet();
+                return EncodeOutcome.failed("DEPLOY_FAILED", built.outputs, Map.of("blankReturned", true));
+            }
+            List<PatternAmount> inputs = definition.presentInputs().stream()
+                    .map(stack -> new PatternAmount(describe(stack.resource()), stack.amount())).toList();
+            target.slots[slot] = new StoredPattern(slot, definition.type(), built.outputs, inputs);
+            return EncodeOutcome.encoded(built.outputs, target.id, ResourceText.literal(target.name), slot);
+        }
     }
 
     @Override

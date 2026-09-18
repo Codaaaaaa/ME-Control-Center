@@ -11,13 +11,11 @@ import appeng.api.networking.crafting.ICraftingPlan;
 import appeng.api.networking.crafting.ICraftingService;
 import appeng.api.networking.crafting.ICraftingSubmitResult;
 import appeng.api.networking.crafting.UnsuitableCpus;
-import appeng.api.networking.security.IActionHost;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
-import com.mojang.authlib.GameProfile;
 import io.github.codaaaaaa.mecc.core.error.ErrorCode;
 import io.github.codaaaaaa.mecc.core.error.MeccException;
 import io.github.codaaaaaa.mecc.core.networks.BlockLocation;
@@ -27,15 +25,11 @@ import io.github.codaaaaaa.mecc.core.users.PlayerProfile;
 import io.github.codaaaaaa.mecc.forge.ComponentText;
 import io.github.codaaaaaa.mecc.platform.CraftingPlatform;
 import io.github.codaaaaaa.mecc.platform.ServerThreadOnly;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,10 +40,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.common.util.FakePlayerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -191,19 +182,10 @@ public final class Ae2CraftingPlatform implements CraftingPlatform {
         if (cpu instanceof CraftingCPUCluster cluster) {
             BlockLocation location = location(cluster);
             if (location != null) {
-                return "c" + shortHash(location.key());
+                return "c" + Ae2Support.shortHash(location.key());
             }
         }
         return foreignCpuIds.computeIfAbsent(cpu, key -> "x" + foreignCpuSerial.incrementAndGet());
-    }
-
-    private static String shortHash(String text) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest, 0, 8);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
     }
 
     private ICraftingCPU findCpu(IGrid grid, String cpuId) {
@@ -247,17 +229,8 @@ public final class Ae2CraftingPlatform implements CraftingPlatform {
         return null;
     }
 
-    /**
-     * Acts as the requesting player, like the crafting terminal: CPU selection modes and AE2's job
-     * notifications then work as in game. Offline players are represented by a fake player with their profile.
-     */
     private IActionSource actionSource(PlayerProfile requester, Level level, IGrid grid) {
-        Player player = server.getPlayerList().getPlayer(requester.uuid());
-        if (player == null && level instanceof ServerLevel serverLevel) {
-            player = FakePlayerFactory.get(serverLevel, new GameProfile(requester.uuid(), requester.name()));
-        }
-        IActionHost host = grid::getPivot;
-        return player == null ? IActionSource.ofMachine(host) : IActionSource.ofPlayer(player, host);
+        return Ae2Support.actionSource(server, requester, level, grid);
     }
 
     private final class Ae2Calculation implements Calculation {
@@ -434,8 +407,7 @@ public final class Ae2CraftingPlatform implements CraftingPlatform {
     // --- helpers ------------------------------------------------------------------------------------
 
     private static IGrid grid(String gridKey) {
-        return GridRegistry.find(gridKey).orElseThrow(() ->
-                new MeccException(ErrorCode.NETWORK_OFFLINE, "The ME network is not loaded right now"));
+        return Ae2Support.grid(gridKey);
     }
 
     private void requireServerThread() {

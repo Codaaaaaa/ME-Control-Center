@@ -21,6 +21,7 @@ export type LiveEffect =
   | { kind: 'cpus'; networkId: string; cpus: CpuList }
   | { kind: 'order'; networkId: string; order: Order }
   | { kind: 'network'; networkId: string }
+  | { kind: 'patterns'; networkId: string }
   | { kind: 'ended'; networkId: string };
 
 export function liveEffects(event: LiveEvent): LiveEffect[] {
@@ -40,6 +41,8 @@ export function liveEffects(event: LiveEvent): LiveEffect[] {
     }
     case 'network.status.changed':
       return [{ kind: 'network', networkId }];
+    case 'pattern.deployed':
+      return [{ kind: 'patterns', networkId }];
     case 'subscription.ended':
       return [{ kind: 'ended', networkId }];
     default:

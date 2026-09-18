@@ -157,7 +157,7 @@ function NetworksSection() {
         <p className="muted-text">{t('networks.subtitle')}</p>
         {networks.isPending ? (
           <LoadingNotice />
-        ) : networks.isError ? (
+        ) : networks.isError && !networks.data ? (
           <ErrorNotice title={t('networks.title')} error={networks.error} onRetry={() => void networks.refetch()} />
         ) : networks.data.length === 0 ? (
           <EmptyNotice title={t('networks.noneTitle')}>{t('networks.noneBody')}</EmptyNotice>

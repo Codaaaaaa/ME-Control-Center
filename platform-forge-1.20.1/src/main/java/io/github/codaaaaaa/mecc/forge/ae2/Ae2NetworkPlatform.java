@@ -116,8 +116,7 @@ public final class Ae2NetworkPlatform implements NetworkPlatform {
                 optional(() -> grid.getStorageService().getCachedInventory().size()),
                 cpus == null ? null : cpus.size(),
                 cpus == null ? null : (int) cpus.stream().filter(ICraftingCPU::isBusy).count(),
-                // Pattern provider enumeration needs AE2 internals; reported as unsupported for now.
-                null);
+                optional(() -> Ae2PatternPlatform.countOnlineProviders(grid)));
     }
 
     /** Reads an optional capability; a failure means "not reliably available", never zero. */

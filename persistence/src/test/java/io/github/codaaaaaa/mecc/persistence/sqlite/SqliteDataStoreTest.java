@@ -17,6 +17,11 @@ import io.github.codaaaaaa.mecc.core.crafting.OrderEventType;
 import io.github.codaaaaaa.mecc.core.crafting.OrderSource;
 import io.github.codaaaaaa.mecc.core.crafting.OrderState;
 import io.github.codaaaaaa.mecc.core.crafting.OrderTarget;
+import io.github.codaaaaaa.mecc.core.patterns.PatternDefinition;
+import io.github.codaaaaaa.mecc.core.patterns.PatternDeployment;
+import io.github.codaaaaaa.mecc.core.patterns.PatternDraft;
+import io.github.codaaaaaa.mecc.core.patterns.PatternStack;
+import io.github.codaaaaaa.mecc.core.patterns.PatternType;
 import io.github.codaaaaaa.mecc.core.resources.ResourceDescriptor.ResourceUnit;
 import io.github.codaaaaaa.mecc.core.resources.ResourceId;
 import io.github.codaaaaaa.mecc.core.networks.BlockLocation;
@@ -203,6 +208,67 @@ class SqliteDataStoreTest {
 
         await(store.write(repos -> repos.networks().delete(network.id())));
         assertTrue(await(store.read(repos -> repos.orders().find(running.id()))).isEmpty(), "orders cascade with the network");
+    }
+
+    @Test
+    void patternDraftsKeepEmptySlotsAndDeploymentsCascade() throws Exception {
+        WebNetwork network = new WebNetwork(UUID.randomUUID(), "Base", steve.uuid(), NOW, null, NetworkRecordStatus.ONLINE,
+                List.of(new NetworkAnchor(new BlockLocation("minecraft:overworld", 1, 64, 2), steve.uuid(), NOW)));
+        PatternStack plank = new PatternStack(ResourceId.of("item", "minecraft", "oak_planks"), 1);
+        List<PatternStack> grid = new java.util.ArrayList<>(java.util.Collections.nCopies(9, (PatternStack) null));
+        grid.set(0, plank);
+        grid.set(3, plank);
+        PatternDraft crafting = new PatternDraft(UUID.randomUUID(), steve.uuid(), network.id(), "Sticks", "",
+                new PatternDefinition(PatternType.CRAFTING, grid, List.of(), true, false, "minecraft:stick"), NOW, NOW);
+        List<PatternStack> processingInputs = new java.util.ArrayList<>();
+        processingInputs.add(null);
+        processingInputs.add(new PatternStack(ResourceId.of("fluid", "minecraft", "water"), 2000));
+        PatternDraft processing = new PatternDraft(UUID.randomUUID(), steve.uuid(), null, "Mud", "wet",
+                new PatternDefinition(PatternType.PROCESSING, processingInputs,
+                        List.of(new PatternStack(ResourceId.of("item", "minecraft", "mud"), 4)), false, false, null),
+                NOW, NOW.plusSeconds(1));
+        await(store.write(repos -> {
+            repos.users().upsert(steve, NOW);
+            repos.networks().insert(network);
+            repos.patternDrafts().insert(crafting);
+            repos.patternDrafts().insert(processing);
+            return null;
+        }));
+
+        assertEquals(crafting, await(store.read(repos -> repos.patternDrafts().find(crafting.id()))).orElseThrow(),
+                "empty grid cells survive the round trip");
+        assertEquals(List.of(processing, crafting), await(store.read(repos -> repos.patternDrafts().listByOwner(steve.uuid()))),
+                "most recently updated first");
+        assertEquals(2, (int) await(store.read(repos -> repos.patternDrafts().countByOwner(steve.uuid()))));
+
+        PatternDraft renamed = new PatternDraft(processing.id(), steve.uuid(), network.id(), "Mud II", "", new PatternDefinition(
+                PatternType.PROCESSING, List.of(plank), List.of(plank), false, false, null), NOW, NOW.plusSeconds(5));
+        assertTrue(await(store.<Boolean>write(repos -> repos.patternDrafts().update(renamed))));
+        assertEquals(renamed, await(store.read(repos -> repos.patternDrafts().find(processing.id()))).orElseThrow(),
+                "update replaces the slots");
+
+        OrderTarget output = new OrderTarget(ResourceId.of("item", "minecraft", "stick"), Map.of("en_us", "Stick"),
+                "minecraft", "item/minecraft/stick", null);
+        PatternDeployment deployed = new PatternDeployment(UUID.randomUUID(), network.id(), steve.uuid(), "dev", crafting.id(),
+                PatternType.CRAFTING, PatternDeployment.Action.DEPLOY, output, "p1", "Assembler", 3, null, NOW);
+        PatternDeployment failed = new PatternDeployment(UUID.randomUUID(), network.id(), steve.uuid(), "dev", null,
+                PatternType.PROCESSING, PatternDeployment.Action.ENCODE, null, null, null, null, "NO_BLANK_PATTERN",
+                NOW.plusSeconds(1));
+        await(store.write(repos -> {
+            repos.patternDeployments().insert(deployed);
+            repos.patternDeployments().insert(failed);
+            return null;
+        }));
+        assertEquals(List.of(failed, deployed), await(store.read(repos -> repos.patternDeployments().recent(network.id(), 10))));
+
+        await(store.write(repos -> repos.networks().delete(network.id())));
+        assertTrue(await(store.read(repos -> repos.patternDeployments().recent(network.id(), 10))).isEmpty(),
+                "history cascades with the network");
+        assertEquals(null, await(store.read(repos -> repos.patternDrafts().find(crafting.id()))).orElseThrow().networkId(),
+                "drafts outlive the network they were made for");
+
+        assertTrue(await(store.<Boolean>write(repos -> repos.patternDrafts().delete(crafting.id()))));
+        assertEquals(1, (int) await(store.read(repos -> repos.patternDrafts().countByOwner(steve.uuid()))));
     }
 
     private static <T> T await(java.util.concurrent.CompletableFuture<T> future) throws Exception {

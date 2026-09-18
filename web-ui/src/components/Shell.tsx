@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { NavLink, Outlet } from 'react-router';
 import { useLogout, useMe } from '../api/queries';
+import { useUpdateAvailable } from '../hooks/useUpdateAvailable';
 import { ConnectionIndicator } from './ConnectionIndicator';
 import { LocaleSelect } from './LocaleSelect';
 
@@ -9,6 +10,7 @@ export function Shell() {
   const me = useMe();
   const logout = useLogout();
   const name = me.data?.user.playerName ?? '';
+  const updateAvailable = useUpdateAvailable();
 
   return (
     <div className="shell">
@@ -59,6 +61,10 @@ export function Shell() {
           <CpuIcon />
           <span>{t('nav.cpus')}</span>
         </NavLink>
+        <NavLink to="/patterns" className="nav-item">
+          <PatternIcon />
+          <span>{t('nav.patterns')}</span>
+        </NavLink>
         <NavLink to="/settings" className="nav-item">
           <SettingsIcon />
           <span>{t('nav.settings')}</span>
@@ -66,6 +72,17 @@ export function Shell() {
       </nav>
 
       <main className="content">
+        {updateAvailable ? (
+          <div className="notice update-notice" role="status">
+            <div>
+              <strong>{t('update.title')}</strong>
+              <p>{t('update.body')}</p>
+            </div>
+            <button type="button" className="button button-primary" onClick={() => window.location.reload()}>
+              {t('update.reload')}
+            </button>
+          </div>
+        ) : null}
         <Outlet />
       </main>
     </div>
@@ -118,6 +135,20 @@ function CpuIcon() {
       <rect x="6" y="6" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
       <rect x="9.5" y="9.5" width="5" height="5" fill="none" stroke="currentColor" strokeWidth="1.4" />
       <path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PatternIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <path
+        d="M6 3h9l3 3v15H6zM15 3v3h3M9 10h2v2H9zM13 10h2v2h-2zM9 14h2v2H9zM13 14h2v2h-2z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

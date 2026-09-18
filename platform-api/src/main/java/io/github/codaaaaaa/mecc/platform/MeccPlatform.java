@@ -54,6 +54,12 @@ public interface MeccPlatform {
     /** Autocrafting. Methods marked {@link ServerThreadOnly} are server-thread only. */
     CraftingPlatform crafting();
 
+    /** Pattern encoding and pattern providers. Methods marked {@link ServerThreadOnly} are server-thread only. */
+    PatternPlatform patterns();
+
+    /** Server recipes and registered resources. Methods marked {@link ServerThreadOnly} are server-thread only. */
+    RecipePlatform recipes();
+
     /** Game and mod asset sources. Thread-safe. */
     AssetPlatform assets();
 

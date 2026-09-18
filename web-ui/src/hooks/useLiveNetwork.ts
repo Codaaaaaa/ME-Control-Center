@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useSyncExternalStore } from 'react';
 import { liveClient, liveEffects, type LiveStatus } from '../api/live';
-import { queryKeys } from '../api/queries';
+import { patternKeys, queryKeys } from '../api/queries';
 
 /**
  * Keeps a network's cached data fresh from `/ws/v1` while the component is mounted. Returns whether live
@@ -25,6 +25,10 @@ export function useLiveNetwork(networkId: string | undefined, locale: string): b
           case 'order':
             void client.invalidateQueries({ queryKey: queryKeys.orders(networkId) });
             void client.invalidateQueries({ queryKey: ['crafting', networkId, 'order', effect.order.id] });
+            break;
+          case 'patterns':
+            // Someone encoded or deployed a pattern: providers and history changed.
+            void client.invalidateQueries({ queryKey: patternKeys.network(networkId) });
             break;
           case 'network':
           case 'ended':

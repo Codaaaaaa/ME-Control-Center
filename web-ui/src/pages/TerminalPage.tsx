@@ -44,7 +44,7 @@ export function TerminalPage() {
   if (networks.isPending) {
     return <LoadingNotice />;
   }
-  if (networks.isError) {
+  if (networks.isError && !networks.data) {
     return <ErrorNotice title={t('networks.title')} error={networks.error} onRetry={() => void networks.refetch()} />;
   }
   if (!selected) {

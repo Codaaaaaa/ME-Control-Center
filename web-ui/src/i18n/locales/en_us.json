@@ -9,7 +9,8 @@
     "settings": "Settings",
     "terminal": "Terminal",
     "crafting": "Crafting",
-    "cpus": "CPUs"
+    "cpus": "CPUs",
+    "patterns": "Patterns"
   },
   "language": {
     "label": "Language",
@@ -66,7 +67,19 @@
       "INTERRUPTED": "ME Control Center stopped while this order was being submitted. Check the crafting CPUs in game.",
       "TRACKING_LOST": "This crafting CPU type cannot be followed across a server restart.",
       "JOB_LOST": "The job has not been seen on any crafting CPU for a long time; its CPU may have been removed.",
-      "OUTCOME_NOT_REPORTED": "The job ended, but this crafting CPU type does not report whether it completed."
+      "OUTCOME_NOT_REPORTED": "The job ended, but this crafting CPU type does not report whether it completed.",
+      "DRAFT_NOT_FOUND": "This pattern draft does not exist.",
+      "PROVIDER_NOT_FOUND": "That pattern provider is no longer part of the network.",
+      "PATTERN_INVALID": "This pattern cannot be encoded. See the validation messages.",
+      "UNSUPPORTED_RESOURCE_TYPE": "The pattern uses a resource type that cannot be put into patterns here.",
+      "NO_BLANK_PATTERN": "The network has no Blank Pattern. Nothing was encoded.",
+      "NETWORK_NO_POWER": "The network has too little stored energy. Nothing was encoded.",
+      "PROVIDER_OFFLINE": "The selected pattern provider is offline (no power or no channel).",
+      "PROVIDER_FULL": "The selected pattern provider has no free pattern slot.",
+      "ENCODE_FAILED": "The pattern could not be encoded. The Blank Pattern was returned.",
+      "DEPLOY_FAILED": "The pattern provider did not accept the pattern. The Blank Pattern was returned.",
+      "VERIFY_FAILED": "The pattern provider did not hold the pattern afterwards. The Blank Pattern was returned.",
+      "PROVIDER_NOT_RENAMABLE": "This kind of pattern provider cannot be renamed from ME Control Center."
     }
   },
   "pair": {
@@ -414,5 +427,172 @@
     "summary": "{{total}} total · {{busy}} busy",
     "live": "live",
     "viewAll": "All crafting CPUs"
+  },
+  "patterns": {
+    "subtitle": "Create, encode, and deploy patterns",
+    "tabs": {
+      "studio": "Studio",
+      "providers": "Providers",
+      "history": "History"
+    },
+    "library": "Pattern drafts",
+    "new": "New pattern",
+    "import": {
+      "button": "Import",
+      "invalid": "This file is not a ME Control Center pattern (.mecc-pattern.json)."
+    },
+    "draftsError": "Unable to load your pattern drafts.",
+    "noDrafts": "No drafts yet. Build a pattern and save it to keep it here.",
+    "draftCount": "{{used}} of {{max}} drafts",
+    "type": "Pattern type",
+    "types": {
+      "CRAFTING": "Crafting",
+      "PROCESSING": "Processing",
+      "SMITHING": "Smithing",
+      "STONECUTTING": "Stonecutting"
+    },
+    "slot": "Slot {{index}}",
+    "smithing": {
+      "template": "Template",
+      "base": "Base",
+      "addition": "Addition"
+    },
+    "stonecutting": {
+      "input": "Input",
+      "choose": "Choose output",
+      "change": "Change output"
+    },
+    "processing": {
+      "inputs": "Inputs",
+      "outputs": "Outputs",
+      "primary": "Primary",
+      "hint": "Processing patterns take any resources, including fluids and addon types, in exact amounts. The first output is the primary output."
+    },
+    "fillFromRecipe": "Fill from recipe",
+    "substitutes": "Allow substitutes",
+    "fluidSubstitutes": "Allow fluid substitutes",
+    "recipeSource": "Recipe",
+    "pickResource": "Choose a resource",
+    "emptySlot": "empty",
+    "clearSlot": "Clear slot",
+    "noOutput": "Output appears when a recipe matches",
+    "choose": "Choose…",
+    "removeRow": "Remove",
+    "addRow": "Add row",
+    "name": "Name",
+    "description": "Description",
+    "untitled": "Untitled pattern",
+    "copyName": "{{name}} (copy)",
+    "valid": "Ready to encode",
+    "invalid": "Cannot be encoded",
+    "validating": "Checking against the server…",
+    "validationError": "Unable to check this pattern.",
+    "noNetwork": "Enroll an ME network to validate and encode patterns. Drafts can still be saved.",
+    "needManager": "Encoding and deploying patterns needs the Manager role on this network.",
+    "startHint": "Fill the slots, or use Fill from recipe.",
+    "blankPatterns_one": "{{count}} Blank Pattern in storage",
+    "blankPatterns_other": "{{count}} Blank Patterns in storage",
+    "encoded": "Pattern encoded",
+    "encodedHint": "The encoded pattern was put into the network storage.",
+    "encode": "Encode to storage",
+    "encoding": "Encoding…",
+    "encodeAndDeploy": "Encode & Deploy",
+    "saveDraft": "Save draft",
+    "clone": "Save as copy",
+    "export": "Export",
+    "delete": "Delete draft",
+    "issues": {
+      "NO_INPUTS": "Add at least one input.",
+      "WRONG_SLOT_COUNT": "This pattern type has a fixed number of input slots.",
+      "TOO_MANY_INPUTS": "Too many inputs for one processing pattern on this server.",
+      "TOO_MANY_OUTPUTS": "Too many outputs for one processing pattern on this server.",
+      "MISSING_PRIMARY_OUTPUT": "The first output is the primary output and is required.",
+      "MISSING_INPUT": "This slot is required.",
+      "NOT_AN_ITEM": "Only items can be used in this pattern type.",
+      "AMOUNT_NOT_ONE": "Each slot of this pattern type holds exactly one item.",
+      "AMOUNT_TOO_LARGE": "The amount is too large.",
+      "RECIPE_REQUIRED": "Choose which stonecutter recipe to use.",
+      "INVALID_RECIPE_ID": "Not a valid recipe ID.",
+      "UNKNOWN_RESOURCE": "This resource does not exist on the server.",
+      "UNSUPPORTED_RESOURCE_TYPE": "Resources of this type can only be used while the network stores or can craft them.",
+      "NO_MATCHING_RECIPE": "No recipe on the server matches these inputs.",
+      "NOT_ENCODABLE": "AE2 cannot encode this pattern."
+    },
+    "picker": {
+      "network": "Network storage",
+      "all": "All items & fluids",
+      "allHint": "Everything registered on the server, including resources this network has never stored.",
+      "error": "Unable to load resources.",
+      "more": "Showing {{shown}} of {{total}}. Refine the search to find more."
+    },
+    "fill": {
+      "title": "Fill from recipe",
+      "pickOutput": "What should the pattern make?",
+      "pickInput": "What goes into the stonecutter?",
+      "output": "Makes",
+      "input": "Takes",
+      "change": "Change",
+      "error": "Unable to load recipes.",
+      "none": "No recipe found",
+      "noneHint": "The server has no recipe of this type for it. Fill the slots by hand, or use a processing pattern.",
+      "truncated": "More recipes match; only the first ones are listed.",
+      "moreOptions": "(+{{n}} more)",
+      "incomplete": "Check inputs",
+      "processingHint": "Machine recipes are read from the server. GregTech recipes list items and fluids with exact amounts, without programmed circuits and chanced outputs; recipes marked \"Check inputs\" may need fluids or other inputs that are not shown."
+    },
+    "deploy": {
+      "title": "Encode & Deploy",
+      "hint": "Uses one Blank Pattern from the network",
+      "provider": "Pattern provider",
+      "submit": "Encode & Deploy",
+      "deploying": "Deploying…",
+      "done": "Pattern deployed",
+      "doneHint": "It is in {{provider}}, slot {{slot}}, and was verified there."
+    },
+    "providers": {
+      "error": "Unable to load pattern providers.",
+      "none": "No pattern providers",
+      "noneHint": "This network has no pattern provider, or none is loaded.",
+      "unnamed": "Pattern provider",
+      "slots": "{{used}} / {{total}} slots",
+      "slotsLabel": "Patterns",
+      "online": "Online",
+      "offline": "Offline",
+      "full": "Full",
+      "summary": "{{total}} providers · {{online}} online",
+      "location": "Location",
+      "priority": "Priority",
+      "blocking": "Blocking mode",
+      "lockMode": "Lock crafting",
+      "visible": "In Pattern Access Terminal",
+      "patterns": "Stored patterns",
+      "unknownType": "Unknown pattern type",
+      "empty": "No patterns yet.",
+      "filter": "Filter by name or machine",
+      "kind": "Type",
+      "machine": "Machine",
+      "rename": "Rename",
+      "renameHint": "Leave empty to remove the custom name"
+    },
+    "lockModes": {
+      "NONE": "Never",
+      "LOCK_WHILE_HIGH": "With redstone signal",
+      "LOCK_WHILE_LOW": "Without redstone signal",
+      "LOCK_UNTIL_PULSE": "Until redstone pulse",
+      "LOCK_UNTIL_RESULT": "Until result returns"
+    },
+    "history": {
+      "error": "Unable to load the pattern history.",
+      "none": "No patterns encoded yet",
+      "noneHint": "Patterns encoded or deployed from ME Control Center appear here.",
+      "ENCODE": "Encoded to storage",
+      "DEPLOY": "Deployed",
+      "success": "Done"
+    }
+  },
+  "update": {
+    "title": "A new version of ME Control Center is installed",
+    "body": "This page is still running the previous version. Reload to use the new one.",
+    "reload": "Reload"
   }
 }

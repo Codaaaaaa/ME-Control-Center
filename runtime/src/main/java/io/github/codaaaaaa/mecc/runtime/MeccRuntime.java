@@ -37,6 +37,10 @@ import io.github.codaaaaaa.mecc.runtime.live.LiveEvents;
 import io.github.codaaaaaa.mecc.runtime.networks.DefaultNetworkService;
 import io.github.codaaaaaa.mecc.runtime.networks.NetworkDirectory;
 import io.github.codaaaaaa.mecc.runtime.networks.NetworkGuard;
+import io.github.codaaaaaa.mecc.runtime.patterns.DefaultPatternService;
+import io.github.codaaaaaa.mecc.runtime.patterns.PatternPresenter;
+import io.github.codaaaaaa.mecc.runtime.patterns.ProviderSnapshots;
+import io.github.codaaaaaa.mecc.runtime.patterns.RecipeLibrary;
 import io.github.codaaaaaa.mecc.runtime.resources.DefaultResourceService;
 import io.github.codaaaaaa.mecc.runtime.resources.ResourceSnapshots;
 import io.github.codaaaaaa.mecc.runtime.resources.TagIndex;
@@ -74,9 +78,11 @@ import org.slf4j.LoggerFactory;
 public final class MeccRuntime {
     private static final Logger LOGGER = LoggerFactory.getLogger(MeccRuntime.class);
     private static final int WORKER_THREADS = 4;
-    /** Small and bounded: icons are rendered off the server thread, but never at its expense. */
     /** CPU lists are read at most this often per network, however many browsers and orders look at them. */
     private static final Duration CPU_SNAPSHOT_MAX_AGE = Duration.ofMillis(1500);
+    /** Pattern providers are read at most this often per network; a deployment refreshes them at once. */
+    private static final Duration PROVIDER_SNAPSHOT_MAX_AGE = Duration.ofSeconds(3);
+    /** Small and bounded: icons are rendered off the server thread, but never at its expense. */
     private static final int ICON_THREADS = Math.max(2, Math.min(4, Runtime.getRuntime().availableProcessors() / 2));
 
     enum Phase {
@@ -268,9 +274,9 @@ public final class MeccRuntime {
         ResourceSnapshots resourceSnapshots = new ResourceSnapshots(platform.storage(), gateway, workers, clock,
                 Duration.ofSeconds(resources.snapshotMaxAgeSeconds()));
         NetworkGuard guard = new NetworkGuard(store, networkDirectory, security.adminOverride());
-        DefaultResourceService resourceService = new DefaultResourceService(guard, resourceSnapshots,
-                new TagIndex(platform.storage(), gateway), assetCatalog::names, platform.assets().modNames(),
-                iconService, workers);
+        TagIndex tagIndex = new TagIndex(platform.storage(), gateway);
+        DefaultResourceService resourceService = new DefaultResourceService(guard, resourceSnapshots, tagIndex,
+                assetCatalog::names, platform.assets().modNames(), iconService, workers);
 
         // Crafting (spec sections 9-12) and live updates (section 31).
         ResourceLabels labels = new ResourceLabels(assetCatalog::names, platform.assets().modNames());
@@ -285,6 +291,14 @@ public final class MeccRuntime {
         LiveEvents live = new LiveEvents(guard, presenter, cpuSnapshots, userCache, clock);
         tracker.connect(cpuSnapshots, live, live::subscribedNetworks);
         craftingService.onOrderEvent(live::orderChanged);
+
+        // Pattern Studio (spec sections 13-17).
+        DefaultPatternService patternService = new DefaultPatternService(store, guard, platform.patterns(), gateway,
+                new RecipeLibrary(platform.recipes(), gateway, workers),
+                new ProviderSnapshots(platform.patterns(), gateway, clock, PROVIDER_SNAPSHOT_MAX_AGE),
+                new PatternPresenter(labels, iconService::assetVersion), labels, tagIndex, assetCatalog::names,
+                platform.assets().modNames(), userCache, config.patterns(), clock);
+        patternService.onLiveEvent(live::networkEvent);
 
         synchronized (this) {
             if (phase == Phase.STOPPED) {
@@ -323,7 +337,8 @@ public final class MeccRuntime {
             return;
         }
         startWebServer(web, security,
-                new WebApi.Services(statusService, auth, networks, resourceService, iconService, craftingService), auth, live);
+                new WebApi.Services(statusService, auth, networks, resourceService, iconService, craftingService,
+                        patternService), auth, live);
     }
 
     private void startWebServer(WebConfig web, SecurityConfig security, WebApi.Services services, DefaultAuthService auth,

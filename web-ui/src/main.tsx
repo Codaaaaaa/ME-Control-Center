@@ -6,6 +6,7 @@ import './styles/global.css';
 import './styles/app.css';
 import './styles/terminal.css';
 import './styles/crafting.css';
+import './styles/patterns.css';
 
 const root = document.getElementById('root');
 if (!root) {

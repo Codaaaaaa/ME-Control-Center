@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchResourceDetail } from '../../api/resources';
 import { exactAmount } from '../../lib/amount';
@@ -28,9 +28,12 @@ export function ResourceDetailPanel({
   const detail = useQuery({
     queryKey: ['resourceDetail', networkId, resourceId, snapshotId, locale],
     queryFn: ({ signal }) => fetchResourceDetail(networkId, resourceId, snapshotId, locale, signal),
+    // A new snapshot keeps showing the same resource's previous detail instead of flashing a loading state.
+    placeholderData: (previous) => (previous?.resource.id === resourceId ? previous : undefined),
   });
   const canCraft = useCapability(networkId, 'SUBMIT_CRAFT');
-  const [crafting, setCrafting] = useState(false);
+  // Captured when the dialog opens so snapshot refreshes (or a failed refetch) never unmount it mid-request.
+  const [crafting, setCrafting] = useState<{ resource: ComponentProps<typeof CraftDialog>['resource']; assetVersion: string } | null>(null);
 
   return (
     <aside className="detail-panel" aria-label={t('terminal.detail')}>
@@ -92,7 +95,8 @@ export function ResourceDetailPanel({
           {detail.data.resource.craftable ? (
             <div className="detail-actions">
               {canCraft ? (
-                <button type="button" className="button button-primary" onClick={() => setCrafting(true)}>
+                <button type="button" className="button button-primary" onClick={() => setCrafting({ resource: detail.data.resource, assetVersion: detail.data.assetVersion })}
+                >
                   {t('crafting.craft')}
                 </button>
               ) : (
@@ -100,16 +104,16 @@ export function ResourceDetailPanel({
               )}
             </div>
           ) : null}
-          {crafting ? (
-            <CraftDialog
-              networkId={networkId}
-              resource={detail.data.resource}
-              assetVersion={detail.data.assetVersion}
-              onClose={() => setCrafting(false)}
-            />
-          ) : null}
         </>
       )}
+      {crafting ? (
+        <CraftDialog
+          networkId={networkId}
+          resource={crafting.resource}
+          assetVersion={crafting.assetVersion}
+          onClose={() => setCrafting(null)}
+        />
+      ) : null}
     </aside>
   );
 }

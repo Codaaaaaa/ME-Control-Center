@@ -9,7 +9,8 @@
     "settings": "设置",
     "terminal": "资源终端",
     "crafting": "合成中心",
-    "cpus": "合成 CPU"
+    "cpus": "合成 CPU",
+    "patterns": "样板中心"
   },
   "language": {
     "label": "语言",
@@ -66,7 +67,19 @@
       "INTERRUPTED": "提交此订单时 ME 控制中心已停止，请在游戏中检查合成 CPU。",
       "TRACKING_LOST": "此类合成 CPU 无法在服务器重启后继续跟踪。",
       "JOB_LOST": "该任务已长时间未在任何合成 CPU 上出现，其 CPU 可能已被拆除。",
-      "OUTCOME_NOT_REPORTED": "任务已结束，但此类合成 CPU 不会报告是否完成。"
+      "OUTCOME_NOT_REPORTED": "任务已结束，但此类合成 CPU 不会报告是否完成。",
+      "DRAFT_NOT_FOUND": "该样板草稿不存在。",
+      "PROVIDER_NOT_FOUND": "该样板供应器已不在此网络中。",
+      "PATTERN_INVALID": "此样板无法编码，请查看校验信息。",
+      "UNSUPPORTED_RESOURCE_TYPE": "样板中使用了无法写入样板的资源类型。",
+      "NO_BLANK_PATTERN": "网络中没有空白样板，未进行编码。",
+      "NETWORK_NO_POWER": "网络储存的能量不足，未进行编码。",
+      "PROVIDER_OFFLINE": "所选样板供应器离线（无能量或无频道）。",
+      "PROVIDER_FULL": "所选样板供应器没有空余的样板槽。",
+      "ENCODE_FAILED": "样板编码失败，空白样板已退回。",
+      "DEPLOY_FAILED": "样板供应器未接受该样板，空白样板已退回。",
+      "VERIFY_FAILED": "部署后样板供应器中未找到该样板，空白样板已退回。",
+      "PROVIDER_NOT_RENAMABLE": "这种样板供应器无法通过 ME Control Center 改名。"
     }
   },
   "pair": {
@@ -414,5 +427,172 @@
     "summary": "共 {{total}} 个 · {{busy}} 个忙碌",
     "live": "实时",
     "viewAll": "全部合成 CPU"
+  },
+  "patterns": {
+    "subtitle": "创建、编码并部署样板",
+    "tabs": {
+      "studio": "样板编辑",
+      "providers": "样板供应器",
+      "history": "记录"
+    },
+    "library": "样板草稿",
+    "new": "新建样板",
+    "import": {
+      "button": "导入",
+      "invalid": "该文件不是 ME Control Center 样板（.mecc-pattern.json）。"
+    },
+    "draftsError": "无法加载你的样板草稿。",
+    "noDrafts": "暂无草稿。编辑好样板后保存即可在此看到。",
+    "draftCount": "已用 {{used}} / {{max}} 个草稿",
+    "type": "样板类型",
+    "types": {
+      "CRAFTING": "合成",
+      "PROCESSING": "处理",
+      "SMITHING": "锻造",
+      "STONECUTTING": "切石"
+    },
+    "slot": "槽位 {{index}}",
+    "smithing": {
+      "template": "模板",
+      "base": "基础",
+      "addition": "材料"
+    },
+    "stonecutting": {
+      "input": "输入",
+      "choose": "选择产物",
+      "change": "更换产物"
+    },
+    "processing": {
+      "inputs": "输入",
+      "outputs": "输出",
+      "primary": "主产物",
+      "hint": "处理样板可使用任意资源（包括流体和附属模组的资源类型），数量精确。第一个输出为主产物。"
+    },
+    "fillFromRecipe": "从配方填充",
+    "substitutes": "允许替代品",
+    "fluidSubstitutes": "允许流体替代",
+    "recipeSource": "配方",
+    "pickResource": "选择资源",
+    "emptySlot": "空",
+    "clearSlot": "清空槽位",
+    "noOutput": "匹配到配方后显示产物",
+    "choose": "选择…",
+    "removeRow": "移除",
+    "addRow": "添加一行",
+    "name": "名称",
+    "description": "说明",
+    "untitled": "未命名样板",
+    "copyName": "{{name}}（副本）",
+    "valid": "可以编码",
+    "invalid": "无法编码",
+    "validating": "正在向服务器校验…",
+    "validationError": "无法校验此样板。",
+    "noNetwork": "登记 ME 网络后才能校验和编码样板，草稿仍可保存。",
+    "needManager": "编码和部署样板需要此网络的管理者角色。",
+    "startHint": "填写槽位，或使用“从配方填充”。",
+    "blankPatterns_one": "存储中有 {{count}} 个空白样板",
+    "blankPatterns_other": "存储中有 {{count}} 个空白样板",
+    "encoded": "样板已编码",
+    "encodedHint": "编码好的样板已放入网络存储。",
+    "encode": "编码到存储",
+    "encoding": "编码中…",
+    "encodeAndDeploy": "编码并部署",
+    "saveDraft": "保存草稿",
+    "clone": "另存副本",
+    "export": "导出",
+    "delete": "删除草稿",
+    "issues": {
+      "NO_INPUTS": "请至少添加一个输入。",
+      "WRONG_SLOT_COUNT": "该样板类型的输入槽数量是固定的。",
+      "TOO_MANY_INPUTS": "输入超过了本服务器单个处理样板的上限。",
+      "TOO_MANY_OUTPUTS": "输出超过了本服务器单个处理样板的上限。",
+      "MISSING_PRIMARY_OUTPUT": "第一个输出是主产物，必须填写。",
+      "MISSING_INPUT": "此槽位必须填写。",
+      "NOT_AN_ITEM": "该样板类型只能使用物品。",
+      "AMOUNT_NOT_ONE": "该样板类型每个槽位只能放一个物品。",
+      "AMOUNT_TOO_LARGE": "数量过大。",
+      "RECIPE_REQUIRED": "请选择要使用的切石机配方。",
+      "INVALID_RECIPE_ID": "配方 ID 无效。",
+      "UNKNOWN_RESOURCE": "服务器上不存在该资源。",
+      "UNSUPPORTED_RESOURCE_TYPE": "此类资源只有在网络中存有或可合成时才能使用。",
+      "NO_MATCHING_RECIPE": "服务器上没有与这些输入匹配的配方。",
+      "NOT_ENCODABLE": "AE2 无法编码此样板。"
+    },
+    "picker": {
+      "network": "网络存储",
+      "all": "全部物品和流体",
+      "allHint": "服务器上注册的所有资源，包括此网络从未存储过的。",
+      "error": "无法加载资源。",
+      "more": "显示 {{total}} 项中的 {{shown}} 项，请细化搜索。"
+    },
+    "fill": {
+      "title": "从配方填充",
+      "pickOutput": "样板要产出什么？",
+      "pickInput": "切石机的输入是什么？",
+      "output": "产出",
+      "input": "输入",
+      "change": "更换",
+      "error": "无法加载配方。",
+      "none": "未找到配方",
+      "noneHint": "服务器上没有该类型的相应配方。可以手动填写槽位，或改用处理样板。",
+      "truncated": "匹配的配方较多，仅列出前面一部分。",
+      "moreOptions": "（另有 {{n}} 种）",
+      "incomplete": "请核对输入",
+      "processingHint": "机器配方读取自服务器。GregTech 配方会列出物品和流体的准确数量，但不包含编程电路和概率产物；标有“请核对输入”的配方可能还需要未显示的流体或其他输入。"
+    },
+    "deploy": {
+      "title": "编码并部署",
+      "hint": "将消耗网络中的一个空白样板",
+      "provider": "样板供应器",
+      "submit": "编码并部署",
+      "deploying": "部署中…",
+      "done": "样板已部署",
+      "doneHint": "已放入 {{provider}} 的第 {{slot}} 格，并已校验。"
+    },
+    "providers": {
+      "error": "无法加载样板供应器。",
+      "none": "没有样板供应器",
+      "noneHint": "此网络没有样板供应器，或供应器所在区块未加载。",
+      "unnamed": "样板供应器",
+      "slots": "{{used}} / {{total}} 格",
+      "slotsLabel": "样板",
+      "online": "在线",
+      "offline": "离线",
+      "full": "已满",
+      "summary": "共 {{total}} 个供应器 · {{online}} 个在线",
+      "location": "位置",
+      "priority": "优先级",
+      "blocking": "阻挡模式",
+      "lockMode": "锁定合成",
+      "visible": "在样板管理终端中显示",
+      "patterns": "已存样板",
+      "unknownType": "未知样板类型",
+      "empty": "暂无样板。",
+      "filter": "按名称或机器筛选",
+      "kind": "类型",
+      "machine": "所属机器",
+      "rename": "重命名",
+      "renameHint": "留空即清除自定义名称"
+    },
+    "lockModes": {
+      "NONE": "从不",
+      "LOCK_WHILE_HIGH": "有红石信号时",
+      "LOCK_WHILE_LOW": "无红石信号时",
+      "LOCK_UNTIL_PULSE": "直到红石脉冲",
+      "LOCK_UNTIL_RESULT": "直到产物返回"
+    },
+    "history": {
+      "error": "无法加载样板记录。",
+      "none": "尚未编码过样板",
+      "noneHint": "通过 ME Control Center 编码或部署的样板会显示在这里。",
+      "ENCODE": "已编码到存储",
+      "DEPLOY": "已部署",
+      "success": "完成"
+    }
+  },
+  "update": {
+    "title": "ME Control Center 已更新",
+    "body": "当前页面仍在运行旧版本，请刷新以使用新版本。",
+    "reload": "刷新"
   }
 }

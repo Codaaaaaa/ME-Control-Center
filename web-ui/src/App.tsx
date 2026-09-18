@@ -9,6 +9,7 @@ import { CraftingPage } from './pages/CraftingPage';
 import { NetworkSettingsPage } from './pages/NetworkSettingsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { OverviewPage } from './pages/OverviewPage';
+import { PatternsPage } from './pages/PatternsPage';
 import { TerminalPage } from './pages/TerminalPage';
 import { SettingsPage } from './pages/SettingsPage';
 
@@ -42,6 +43,7 @@ export function App() {
               <Route path="terminal" element={<TerminalPage />} />
               <Route path="crafting" element={<CraftingPage />} />
               <Route path="cpus" element={<CpusPage />} />
+              <Route path="patterns" element={<PatternsPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="networks/:networkId" element={<NetworkSettingsPage />} />
               <Route path="*" element={<NotFoundPage />} />

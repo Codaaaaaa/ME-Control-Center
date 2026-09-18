@@ -5,6 +5,7 @@ import com.fasterxml.jackson.dataformat.toml.TomlMapper;
 import io.github.codaaaaaa.mecc.core.config.AssetsConfig;
 import io.github.codaaaaaa.mecc.core.config.ConfigValidationException;
 import io.github.codaaaaaa.mecc.core.config.CraftingConfig;
+import io.github.codaaaaaa.mecc.core.config.PatternsConfig;
 import io.github.codaaaaaa.mecc.core.config.NetworksConfig;
 import io.github.codaaaaaa.mecc.core.config.ResourcesConfig;
 import io.github.codaaaaaa.mecc.core.config.SecurityConfig;
@@ -44,7 +45,8 @@ public final class ConfigLoader {
             "networks", Set.of("discovery_interval_seconds"),
             "resources", Set.of("snapshot_max_age_seconds"),
             "assets", Set.of("download_vanilla_assets"),
-            "crafting", Set.of("max_craft_amount", "calculation_timeout_seconds"));
+            "crafting", Set.of("max_craft_amount", "calculation_timeout_seconds"),
+            "patterns", Set.of("max_pattern_inputs", "max_pattern_outputs", "max_drafts_per_user"));
 
     static final String DEFAULT_FILE = """
             # ME Control Center configuration.
@@ -113,6 +115,14 @@ public final class ConfigLoader {
 
             # A crafting calculation still running after this many seconds is abandoned (5-600).
             calculation_timeout_seconds = 60
+
+            [patterns]
+            # Most inputs and outputs of one processing pattern (1-81 and 1-27, AE2's own limits).
+            max_pattern_inputs = 81
+            max_pattern_outputs = 27
+
+            # Pattern drafts one player may keep in Pattern Studio (1-10000).
+            max_drafts_per_user = 200
             """;
 
     private final Path file;
@@ -152,6 +162,7 @@ public final class ConfigLoader {
         Section resources = section(root, "resources", problems);
         Section assets = section(root, "assets", problems);
         Section crafting = section(root, "crafting", problems);
+        Section patterns = section(root, "patterns", problems);
 
         WebConfig webDefaults = WebConfig.defaults();
         boolean enabled = web.bool("enabled", webDefaults.enabled());
@@ -197,8 +208,14 @@ public final class ConfigLoader {
                 crafting.longValue("max_craft_amount", craftingDefaults.maxCraftAmount()),
                 crafting.integer("calculation_timeout_seconds", craftingDefaults.calculationTimeoutSeconds()));
 
+        PatternsConfig patternsDefaults = PatternsConfig.defaults();
+        PatternsConfig patternsConfig = new PatternsConfig(
+                patterns.integer("max_pattern_inputs", patternsDefaults.maxPatternInputs()),
+                patterns.integer("max_pattern_outputs", patternsDefaults.maxPatternOutputs()),
+                patterns.integer("max_drafts_per_user", patternsDefaults.maxDraftsPerUser()));
+
         MeccConfig config = new MeccConfig(new WebConfig(enabled, host, port, maxThreads, publicBaseUrl),
-                securityConfig, networksConfig, resourcesConfig, assetsConfig, craftingConfig);
+                securityConfig, networksConfig, resourcesConfig, assetsConfig, craftingConfig, patternsConfig);
         if (problems.isEmpty()) {
             problems.addAll(config.validate());
         }

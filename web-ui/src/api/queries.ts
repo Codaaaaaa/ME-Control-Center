@@ -2,6 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import * as auth from './auth';
 import * as crafting from './crafting';
 import * as networks from './networks';
+import * as patterns from './patterns';
 
 export const queryKeys = {
   me: ['me'] as const,
@@ -227,6 +228,84 @@ export function useCraftingMutations(networkId: string, locale: string) {
     cancelCpuJob: useMutation({
       mutationFn: ({ cpuId, jobId }: { cpuId: string; jobId: string | null }) =>
         crafting.cancelCpuJob(networkId, cpuId, jobId),
+      onSettled: refresh,
+    }),
+  };
+}
+
+// --- Pattern Studio (spec sections 13-17) -------------------------------------------------------------
+
+export const patternKeys = {
+  drafts: (locale: string) => ['patterns', 'drafts', locale] as const,
+  allDrafts: ['patterns', 'drafts'] as const,
+  network: (networkId: string) => ['patterns', 'network', networkId] as const,
+  providers: (networkId: string, locale: string) => ['patterns', 'network', networkId, 'providers', locale] as const,
+  deployments: (networkId: string, locale: string) => ['patterns', 'network', networkId, 'deployments', locale] as const,
+  validation: (networkId: string, body: string, locale: string) =>
+    ['patterns', 'network', networkId, 'validate', body, locale] as const,
+  recipes: (type: patterns.PatternType, by: string, locale: string) => ['patterns', 'recipes', type, by, locale] as const,
+};
+
+export function useDrafts(locale: string) {
+  return useQuery({ queryKey: patternKeys.drafts(locale), queryFn: ({ signal }) => patterns.fetchDrafts(locale, signal) });
+}
+
+export function useProviders(networkId: string | undefined, locale: string) {
+  return useQuery({
+    queryKey: patternKeys.providers(networkId ?? '', locale),
+    queryFn: ({ signal }) => patterns.fetchProviders(networkId ?? '', locale, signal),
+    enabled: networkId !== undefined,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useDeployments(networkId: string, locale: string) {
+  return useQuery({
+    queryKey: patternKeys.deployments(networkId, locale),
+    queryFn: ({ signal }) => patterns.fetchDeployments(networkId, locale, signal),
+  });
+}
+
+export function useDraftMutations(locale: string) {
+  const client = useQueryClient();
+  const refresh = () => void client.invalidateQueries({ queryKey: patternKeys.allDrafts });
+  return {
+    create: useMutation({
+      mutationFn: (input: patterns.DraftInput) => patterns.createDraft(input, locale),
+      onSuccess: refresh,
+    }),
+    update: useMutation({
+      mutationFn: ({ id, input }: { id: string; input: patterns.DraftInput }) => patterns.updateDraft(id, input, locale),
+      onSuccess: refresh,
+    }),
+    remove: useMutation({ mutationFn: patterns.deleteDraft, onSuccess: refresh }),
+  };
+}
+
+export function usePatternMutations(networkId: string, locale: string) {
+  const client = useQueryClient();
+  const refresh = () => {
+    void client.invalidateQueries({ queryKey: patternKeys.network(networkId) });
+    // Encoding takes a Blank Pattern out of storage and may put an encoded one in.
+    void client.invalidateQueries({ queryKey: ['resources'] });
+  };
+  return {
+    encode: useMutation({
+      mutationFn: ({ definition, draftId }: { definition: patterns.DefinitionBody; draftId: string | null }) =>
+        patterns.encodePattern(networkId, definition, draftId, locale),
+      onSettled: refresh,
+    }),
+    rename: useMutation({
+      mutationFn: ({ providerId, name }: { providerId: string; name: string }) =>
+        patterns.renameProvider(networkId, providerId, name),
+      onSettled: refresh,
+    }),
+    deploy: useMutation({
+      mutationFn: ({ definition, draftId, providerId }: {
+        definition: patterns.DefinitionBody;
+        draftId: string | null;
+        providerId: string;
+      }) => patterns.deployPattern(networkId, definition, draftId, providerId, locale),
       onSettled: refresh,
     }),
   };

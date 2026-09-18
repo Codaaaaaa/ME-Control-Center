@@ -54,6 +54,11 @@ public final class Ae2StoragePlatform implements StoragePlatform {
     private final MinecraftServer server;
     /** Conversion is pure and stable per key, so results are reused across snapshots. */
     private final Map<AEKey, ResourceDescriptor> descriptors = new ConcurrentHashMap<>();
+    /**
+     * Keys by resource id, for every key ever described. Variant ids (NBT hashes) cannot be turned back into keys,
+     * so this is how a pattern can name e.g. a configured programmed circuit the network does not store.
+     */
+    private final Map<ResourceId, AEKey> keysById = new ConcurrentHashMap<>();
 
     public Ae2StoragePlatform(MinecraftServer server) {
         this.server = server;
@@ -154,13 +159,23 @@ public final class Ae2StoragePlatform implements StoragePlatform {
         }
         if (descriptors.size() > MAX_DESCRIPTOR_CACHE) {
             descriptors.clear();
+            keysById.clear();
         }
         return new ResourceIndex(source.capturedAt, descriptorArray, source.amounts, source.craftable, source.crafting);
     }
 
     /** Describes one key, reusing earlier conversions. Safe on any thread. */
     ResourceDescriptor describe(AEKey key) {
-        return descriptors.computeIfAbsent(key, Ae2StoragePlatform::convert);
+        return descriptors.computeIfAbsent(key, candidate -> {
+            ResourceDescriptor descriptor = convert(candidate);
+            keysById.putIfAbsent(descriptor.id(), candidate);
+            return descriptor;
+        });
+    }
+
+    /** The key behind a resource id that was described before, if any. Safe on any thread. */
+    AEKey knownKey(ResourceId id) {
+        return keysById.get(id);
     }
 
     static ResourceDescriptor convert(AEKey key) {

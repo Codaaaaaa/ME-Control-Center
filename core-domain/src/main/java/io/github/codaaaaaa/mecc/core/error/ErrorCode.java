@@ -66,6 +66,30 @@ public enum ErrorCode {
     NOT_RUNNING(409),
     /** The crafting system refused the job for a reason ME Control Center does not know. */
     CRAFT_REJECTED(409),
+    /** The pattern draft does not exist or belongs to someone else. */
+    DRAFT_NOT_FOUND(404),
+    /** No pattern provider with this ID is part of the network right now. */
+    PROVIDER_NOT_FOUND(404),
+    /** The pattern definition cannot be encoded. {@code details.issues} lists why. */
+    PATTERN_INVALID(422),
+    /** A resource in the pattern is of a type the platform cannot put into patterns. */
+    UNSUPPORTED_RESOURCE_TYPE(422),
+    /** The network's storage has no Blank Pattern to encode onto. */
+    NO_BLANK_PATTERN(409),
+    /** The network has too little stored energy to take a Blank Pattern out of storage. */
+    NETWORK_NO_POWER(409),
+    /** This kind of pattern container has no name that can be changed. */
+    PROVIDER_NOT_RENAMABLE(409),
+    /** The selected pattern provider is not powered or has no channel. */
+    PROVIDER_OFFLINE(409),
+    /** The selected pattern provider has no free pattern slot. */
+    PROVIDER_FULL(409),
+    /** The pattern could not be encoded, or the encoded pattern could not be stored. Nothing was consumed. */
+    ENCODE_FAILED(409),
+    /** The encoded pattern could not be placed into the provider. The Blank Pattern was returned. */
+    DEPLOY_FAILED(409),
+    /** The provider did not hold the expected pattern after deployment. The Blank Pattern was returned. */
+    VERIFY_FAILED(409),
     PAYLOAD_TOO_LARGE(413),
     UNSUPPORTED_MEDIA_TYPE(415),
     RATE_LIMITED(429),

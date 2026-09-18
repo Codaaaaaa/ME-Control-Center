@@ -11,13 +11,19 @@ import io.github.codaaaaaa.mecc.core.networks.NetworkService;
 import io.github.codaaaaaa.mecc.core.networks.NetworkViews.CandidateView;
 import io.github.codaaaaaa.mecc.core.networks.NetworkViews.MemberView;
 import io.github.codaaaaaa.mecc.core.networks.NetworkViews.NetworkSummaryView;
+import io.github.codaaaaaa.mecc.core.patterns.PatternDefinition;
+import io.github.codaaaaaa.mecc.core.patterns.PatternService;
+import io.github.codaaaaaa.mecc.core.patterns.PatternStack;
+import io.github.codaaaaaa.mecc.core.patterns.PatternType;
 import io.github.codaaaaaa.mecc.core.permissions.NetworkRole;
+import io.github.codaaaaaa.mecc.core.resources.ResourceId;
 import io.github.codaaaaaa.mecc.core.resources.ResourceQuery;
 import io.github.codaaaaaa.mecc.core.resources.ResourceService;
 import io.github.codaaaaaa.mecc.core.status.StatusService;
 import io.github.codaaaaaa.mecc.web.api.ApiRequest;
 import io.github.codaaaaaa.mecc.web.api.ApiResponse;
 import io.github.codaaaaaa.mecc.web.api.ApiRoutes;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -38,7 +44,7 @@ public final class WebApi {
     }
 
     public record Services(StatusService status, AuthService auth, NetworkService networks, ResourceService resources,
-                           IconService icons, CraftingService crafting) {
+                           IconService icons, CraftingService crafting, PatternService patterns) {
         public Services {
             Objects.requireNonNull(status, "status");
             Objects.requireNonNull(auth, "auth");
@@ -46,6 +52,7 @@ public final class WebApi {
             Objects.requireNonNull(resources, "resources");
             Objects.requireNonNull(icons, "icons");
             Objects.requireNonNull(crafting, "crafting");
+            Objects.requireNonNull(patterns, "patterns");
         }
     }
 
@@ -74,6 +81,24 @@ public final class WebApi {
     record CpuCancelRequest(String jobId) {
     }
 
+    /** A pattern slot: {@code resource} is a resource ID text such as {@code item:minecraft:iron_ingot}. */
+    record StackBody(String resource, Long amount) {
+    }
+
+    /** {@link PatternDefinition} as JSON; empty slots are {@code null}. */
+    record DefinitionBody(String type, List<StackBody> inputs, List<StackBody> outputs, Boolean substitutes,
+                          Boolean fluidSubstitutes, String recipeId) {
+    }
+
+    record DraftRequest(String name, String description, String networkId, DefinitionBody definition) {
+    }
+
+    record ValidateRequest(DefinitionBody definition, String locale) {
+    }
+
+    record EncodeRequest(DefinitionBody definition, String draftId, String providerId, String locale) {
+    }
+
     // Response wrappers: named collections keep responses extensible.
     record DeviceList(List<DeviceView> devices) {
     }
@@ -94,6 +119,7 @@ public final class WebApi {
         AuthService auth = services.auth();
         NetworkService networks = services.networks();
         CraftingService crafting = services.crafting();
+        PatternService patterns = services.patterns();
 
         return ApiRoutes.builder()
                 .publicGet(V1 + "/status", request -> services.status().currentStatus())
@@ -189,6 +215,50 @@ public final class WebApi {
                 .post(V1 + "/networks/{networkId}/crafting/orders/{orderId}/cancel", request -> crafting.cancel(
                         request.session(), networkId(request), orderId(request), locale(request)))
 
+                // Pattern Studio (spec sections 13-17). Drafts are personal; network routes check the role.
+                .get(V1 + "/patterns/drafts", request -> patterns.drafts(request.session(), locale(request)))
+                .post(V1 + "/patterns/drafts", request -> patterns.createDraft(request.session(),
+                                draftInput(request.body(DraftRequest.class)), locale(request))
+                        .thenApply(ApiResponse::created))
+                .get(V1 + "/patterns/drafts/{draftId}", request -> patterns.draft(request.session(), draftId(request),
+                        locale(request)))
+                .patch(V1 + "/patterns/drafts/{draftId}", request -> patterns.updateDraft(request.session(),
+                        draftId(request), draftInput(request.body(DraftRequest.class)), locale(request)))
+                .delete(V1 + "/patterns/drafts/{draftId}", request -> patterns.deleteDraft(request.session(),
+                        draftId(request)).thenApply(ignored -> ApiResponse.noContent()))
+                .get(V1 + "/patterns/catalog", request -> patterns.catalog(request.session(), query(request)))
+                .get(V1 + "/patterns/recipes", request -> patterns.recipes(request.session(),
+                        request.enumParameter("type", PatternType.class, null), request.queryParameter("output", null),
+                        request.queryParameter("input", null), locale(request)))
+                .get(V1 + "/networks/{networkId}/providers", request -> patterns.providers(request.session(),
+                        networkId(request), locale(request)))
+                .patch(V1 + "/networks/{networkId}/providers/{providerId}", request -> patterns.renameProvider(
+                                request.session(), networkId(request), request.pathParameter("providerId"),
+                                request.body(NameRequest.class).name())
+                        .thenApply(ignored -> ApiResponse.noContent()))
+                .post(V1 + "/networks/{networkId}/patterns/validate", request -> {
+                    ValidateRequest body = request.body(ValidateRequest.class);
+                    return patterns.validate(request.session(), networkId(request), definition(body.definition()),
+                            locale(body.locale()));
+                })
+                .post(V1 + "/networks/{networkId}/patterns/encode", request -> {
+                    EncodeRequest body = request.body(EncodeRequest.class);
+                    return patterns.encode(request.session(), networkId(request), definition(body.definition()),
+                            optionalUuid(body.draftId(), "draftId"), null, locale(body.locale()))
+                            .thenApply(ApiResponse::created);
+                })
+                .post(V1 + "/networks/{networkId}/patterns/deploy", request -> {
+                    EncodeRequest body = request.body(EncodeRequest.class);
+                    if (body.providerId() == null || body.providerId().isBlank()) {
+                        throw MeccException.validation("providerId", "providerId is required");
+                    }
+                    return patterns.encode(request.session(), networkId(request), definition(body.definition()),
+                            optionalUuid(body.draftId(), "draftId"), body.providerId().strip(), locale(body.locale()))
+                            .thenApply(ApiResponse::created);
+                })
+                .get(V1 + "/networks/{networkId}/patterns/deployments", request -> patterns.deployments(
+                        request.session(), networkId(request), locale(request)))
+
                 // Icons are static game assets; they may be cached for a long time because the URL carries
                 // the asset version (spec section 48).
                 .get(V1 + "/icons", request -> services.icons().icon(request.queryParameter("key", ""))
@@ -197,6 +267,69 @@ public final class WebApi {
                                 .orElseThrow(() -> new MeccException(ErrorCode.ICON_NOT_FOUND,
                                         "No icon is available for this resource"))))
                 .build();
+    }
+
+    private static UUID draftId(ApiRequest request) {
+        return request.uuidParameter("draftId", ErrorCode.DRAFT_NOT_FOUND);
+    }
+
+    private static UUID optionalUuid(String value, String field) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value.strip());
+        } catch (IllegalArgumentException e) {
+            throw MeccException.validation(field, field + " is not a valid ID");
+        }
+    }
+
+    private static PatternService.DraftInput draftInput(DraftRequest body) {
+        return new PatternService.DraftInput(body.name(), body.description(), optionalUuid(body.networkId(), "networkId"),
+                definition(body.definition()));
+    }
+
+    /** Parses a pattern definition, naming the offending field in {@code VALIDATION_FAILED} errors. */
+    static PatternDefinition definition(DefinitionBody body) {
+        if (body == null) {
+            throw MeccException.validation("definition", "definition is required");
+        }
+        PatternType type;
+        try {
+            type = PatternType.valueOf(body.type() == null ? "" : body.type().strip().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw MeccException.validation("definition.type",
+                    "type must be one of CRAFTING, PROCESSING, SMITHING, STONECUTTING");
+        }
+        return new PatternDefinition(type, stacks(body.inputs(), "definition.inputs"),
+                stacks(body.outputs(), "definition.outputs"), Boolean.TRUE.equals(body.substitutes()),
+                Boolean.TRUE.equals(body.fluidSubstitutes()), body.recipeId());
+    }
+
+    private static List<PatternStack> stacks(List<StackBody> bodies, String field) {
+        if (bodies == null) {
+            return List.of();
+        }
+        if (bodies.size() > 256) {
+            throw MeccException.validation(field, "Too many slots");
+        }
+        List<PatternStack> stacks = new ArrayList<>(bodies.size());
+        for (int i = 0; i < bodies.size(); i++) {
+            StackBody body = bodies.get(i);
+            String slot = field + "[" + i + "]";
+            if (body == null || body.resource() == null || body.resource().isBlank()) {
+                stacks.add(null);
+                continue;
+            }
+            ResourceId resource = ResourceId.parse(body.resource().strip())
+                    .orElseThrow(() -> MeccException.validation(slot + ".resource", "Not a valid resource ID"));
+            long amount = body.amount() == null ? 1 : body.amount();
+            if (amount < 1) {
+                throw MeccException.validation(slot + ".amount", "The amount must be at least 1");
+            }
+            stacks.add(new PatternStack(resource, amount));
+        }
+        return stacks;
     }
 
     private static UUID orderId(ApiRequest request) {
