@@ -1,0 +1,90 @@
+/* Insights: watchlist cards and trend charts (spec sections 6.2-6.3). */
+.chart-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.chart-controls .segment {
+  min-height: 32px;
+}
+
+.trend-chart {
+  width: 100%;
+  min-width: 0;
+}
+
+.watch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.watch-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  background: var(--background-1);
+  min-width: 0;
+}
+
+.watch-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.watch-card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.watch-card-amount {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.watch-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-watch {
+  margin-top: 16px;
+}
+
+.detail-history {
+  margin-top: 12px;
+}
+
+.footnote-danger {
+  color: var(--danger);
+}
+
+@media (max-width: 760px) {
+  .chart-controls {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .chart-controls .segmented {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .chart-controls .segment {
+    min-height: var(--touch-target);
+  }
+}
+
+.card-header:has(.chart-controls) {
+  flex-wrap: wrap;
+}

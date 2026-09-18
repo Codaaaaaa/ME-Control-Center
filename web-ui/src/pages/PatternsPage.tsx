@@ -6,7 +6,9 @@ import {
   definitionBody,
   editorFromDefinition,
   emptyEditor,
+  findDuplicates,
   hasContent,
+  LOCK_MODES,
   parsePortable,
   portableFileName,
   toPortable,
@@ -15,6 +17,7 @@ import {
   type Editor,
   type EncodeResult,
   type Provider,
+  type ProviderSettings,
   type Validation,
   providerSearchText,
 } from '../api/patterns';
@@ -40,7 +43,7 @@ import { useLiveNetwork } from '../hooks/useLiveNetwork';
 import { formatRelative } from '../lib/format';
 import { resolveSelectedNetwork, useSelectedNetwork } from '../stores/selectedNetwork';
 
-const TABS = ['studio', 'providers', 'history'] as const;
+const TABS = ['studio', 'providers', 'duplicates', 'history'] as const;
 type Tab = (typeof TABS)[number];
 
 /** Processing-pattern limits as AE2 has them; the server may configure lower ones and says so when validating. */
@@ -84,6 +87,8 @@ export function PatternsPage() {
         <EmptyNotice title={t('networks.noneTitle')}>{t('networks.noneBody')}</EmptyNotice>
       ) : tab === 'providers' ? (
         <Providers networkId={selected.id} />
+      ) : tab === 'duplicates' ? (
+        <Duplicates networkId={selected.id} />
       ) : (
         <History networkId={selected.id} />
       )}
@@ -436,13 +441,15 @@ function Providers({ networkId }: { networkId: string }) {
         <input className="input" type="search" value={filter} onChange={(event) => setFilter(event.target.value)}
           placeholder={t('patterns.providers.filter')} aria-label={t('patterns.providers.filter')} />
       </div>
-      <FormError error={mutations.rename.error} />
+      <FormError error={mutations.rename.error ?? mutations.configure.error} />
       <div className="provider-grid">
         {shown.map((provider) => (
           <ProviderCard key={provider.id} provider={provider} assetVersion={data.assetVersion}
             canRename={data.canConfigure && provider.renamable}
-            renaming={mutations.rename.isPending}
-            onRename={(name) => mutations.rename.mutate({ providerId: provider.id, name })} />
+            canConfigure={data.canConfigure && provider.priority !== null}
+            renaming={mutations.rename.isPending || mutations.configure.isPending}
+            onRename={(name) => mutations.rename.mutate({ providerId: provider.id, name })}
+            onConfigure={(settings) => mutations.configure.mutate({ providerId: provider.id, settings })} />
         ))}
       </div>
       {shown.length === 0 ? <p className="muted">{t('terminal.noMatches')}</p> : null}
@@ -454,18 +461,23 @@ function ProviderCard({
   provider,
   assetVersion,
   canRename,
+  canConfigure,
   renaming,
   onRename,
+  onConfigure,
 }: {
   provider: Provider;
   assetVersion: string;
   canRename: boolean;
+  canConfigure: boolean;
   renaming: boolean;
   onRename: (name: string) => void;
+  onConfigure: (settings: ProviderSettings) => void;
 }) {
   const { t, i18n } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const [settings, setSettings] = useState<ProviderSettings | null>(null);
   return (
     <article className="card provider-card">
       <header className="card-header">
@@ -546,6 +558,53 @@ function ProviderCard({
           </div>
         ) : null}
       </dl>
+      {settings ? (
+        <form className="provider-settings" onSubmit={(event) => {
+          event.preventDefault();
+          onConfigure(settings);
+          setSettings(null);
+        }}>
+          <label className="form-field">
+            <span>{t('patterns.providers.priority')}</span>
+            <input className="input" type="number" step={1} value={settings.priority}
+              onChange={(event) => setSettings({ ...settings, priority: Math.trunc(Number(event.target.value) || 0) })} />
+          </label>
+          <label className="form-field">
+            <span>{t('patterns.providers.lockMode')}</span>
+            <select className="input" value={settings.lockMode}
+              onChange={(event) => setSettings({ ...settings, lockMode: event.target.value })}>
+              {LOCK_MODES.map((mode) => <option key={mode} value={mode}>{t(`patterns.lockModes.${mode}`)}</option>)}
+            </select>
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={settings.blocking}
+              onChange={(event) => setSettings({ ...settings, blocking: event.target.checked })} />
+            {t('patterns.providers.blocking')}
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={settings.visibleInTerminal}
+              onChange={(event) => setSettings({ ...settings, visibleInTerminal: event.target.checked })} />
+            {t('patterns.providers.visible')}
+          </label>
+          <div className="order-actions">
+            <button type="submit" className="button button-primary button-small" disabled={renaming}>{t('common.save')}</button>
+            <button type="button" className="button button-quiet button-small" onClick={() => setSettings(null)}>
+              {t('common.cancel')}
+            </button>
+          </div>
+        </form>
+      ) : canConfigure ? (
+        <div className="order-actions">
+          <button type="button" className="button button-quiet button-small" onClick={() => setSettings({
+            priority: provider.priority ?? 0,
+            blocking: provider.blocking ?? false,
+            lockMode: provider.lockMode ?? 'NONE',
+            visibleInTerminal: provider.visibleInTerminal ?? true,
+          })}>
+            {t('patterns.providers.settings')}
+          </button>
+        </div>
+      ) : null}
       {provider.patterns.length > 0 ? (
         <ul className="stored-patterns" aria-label={t('patterns.providers.patterns')}>
           {provider.patterns.map((pattern) => {
@@ -563,6 +622,73 @@ function ProviderCard({
         <p className="muted">{t('patterns.providers.empty')}</p>
       )}
     </article>
+  );
+}
+
+// --- duplicates (spec section 17) ----------------------------------------------------------------------
+
+type DuplicateFilter = 'all' | 'same' | 'different';
+
+function Duplicates({ networkId }: { networkId: string }) {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language;
+  useLiveNetwork(networkId, locale);
+  const providers = useProviders(networkId, locale);
+  const [filter, setFilter] = useState<DuplicateFilter>('all');
+
+  if (providers.isPending) {
+    return <LoadingNotice />;
+  }
+  if (providers.isError) {
+    return <ErrorNotice title={t('patterns.providers.error')} error={providers.error} onRetry={() => void providers.refetch()} />;
+  }
+  const groups = findDuplicates(providers.data.providers);
+  const shown = groups.filter((group) => filter === 'all' || group.sameInputs === (filter === 'same'));
+  const { assetVersion } = providers.data;
+  return (
+    <>
+      <div className="provider-toolbar">
+        <p className="muted section-note">{t('patterns.duplicates.explain')}</p>
+        <select className="input" value={filter} aria-label={t('patterns.duplicates.filter')}
+          onChange={(event) => setFilter(event.target.value as DuplicateFilter)}>
+          {(['all', 'same', 'different'] as const).map((name) => (
+            <option key={name} value={name}>{t(`patterns.duplicates.filters.${name}`)}</option>
+          ))}
+        </select>
+      </div>
+      {shown.length === 0 ? (
+        <EmptyNotice title={t('patterns.duplicates.none')}>{t('patterns.duplicates.noneHint')}</EmptyNotice>
+      ) : (
+        <div className="provider-grid">
+          {shown.map((group) => (
+            <article key={group.output.resource.id} className="card provider-card">
+              <header className="card-header">
+                <ResourceLabelView resource={group.output.resource} assetVersion={assetVersion} size={28} />
+                <Badge tone={group.sameInputs ? 'warning' : 'neutral'}>
+                  {group.sameInputs ? t('patterns.duplicates.same') : t('patterns.duplicates.different')}
+                </Badge>
+              </header>
+              <ul className="list list-compact">
+                {group.entries.map(({ provider, pattern }) => (
+                  <li key={`${provider.id}-${pattern.slot}`} className="list-row">
+                    <div className="list-main">
+                      <div className="list-title">{provider.name ?? t('patterns.providers.unnamed')}</div>
+                      <div className="list-meta">
+                        <span>{t('patterns.duplicates.priority', { priority: provider.priority ?? '—' })}</span>
+                        <span>{t('patterns.duplicates.slot', { slot: pattern.slot + 1 })}</span>
+                        <span>{pattern.inputs.map((input) => `${input.resource.name} ×${input.amount}`).join(', ')}</span>
+                      </div>
+                    </div>
+                    {provider.online ? <Badge tone="success">{t('patterns.providers.online')}</Badge>
+                      : <Badge tone="danger">{t('patterns.providers.offline')}</Badge>}
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 

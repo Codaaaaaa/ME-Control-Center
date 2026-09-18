@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router';
 import { failureKind } from '../api/client';
-import { useNetworks } from '../api/queries';
+import { useNetworks, useWatchlist } from '../api/queries';
 import type { ResourceQuery } from '../api/resources';
 import { NetworkPicker } from '../components/network/NetworkPicker';
 import { EmptyNotice, ErrorNotice, LoadingNotice, useErrorMessage } from '../components/StateNotice';
@@ -24,7 +25,14 @@ export function TerminalPage() {
   const prefs = useTerminalPrefs();
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search);
-  const [selectedResource, setSelectedResource] = useState<string | null>(null);
+  // `?resource=<id>` opens a resource directly, e.g. from a watchlist card.
+  const [searchParams] = useSearchParams();
+  const [selectedResource, setSelectedResource] = useState<string | null>(() => searchParams.get('resource'));
+  const watchlist = useWatchlist(selected?.id, i18n.language);
+  const watchedIds = useMemo(
+    () => new Set(watchlist.data?.entries.map((entry) => entry.resource.id) ?? []),
+    [watchlist.data],
+  );
   const [range, setRange] = useState({ start: 0, end: 0 });
   const onRangeChange = useCallback((start: number, end: number) => setRange({ start, end }), []);
 
@@ -113,6 +121,7 @@ export function TerminalPage() {
             window={resources}
             tileSize={tileSize}
             selectedId={selectedResource}
+            watchedIds={watchedIds}
             onSelect={setSelectedResource}
             onRangeChange={onRangeChange}
           />

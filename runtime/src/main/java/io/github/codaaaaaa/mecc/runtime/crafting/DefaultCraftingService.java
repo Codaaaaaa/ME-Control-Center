@@ -255,7 +255,8 @@ public final class DefaultCraftingService implements CraftingService {
     // --- orders -------------------------------------------------------------------------------------
 
     @Override
-    public CompletionStage<OrderView> submit(Session session, UUID networkId, String planId, String cpuId, String locale) {
+    public CompletionStage<OrderView> submit(Session session, UUID networkId, String planId, String cpuId,
+                                             OrderSource source, String locale) {
         return guard.access(session, networkId).thenCompose(access -> {
             NetworkGuard.require(access, NetworkCapability.SUBMIT_CRAFT);
             Plan plan = findPlan(session, networkId, planId);
@@ -277,16 +278,16 @@ public final class DefaultCraftingService implements CraftingService {
             if (!plan.submitting.compareAndSet(false, true)) {
                 throw new MeccException(ErrorCode.CONFLICT, "This plan is already being submitted");
             }
-            return submitPlan(session, access, plan, gridKey, cpuId, locale)
+            return submitPlan(session, access, plan, gridKey, cpuId, source, locale)
                     .whenComplete((view, error) -> plan.submitting.set(false));
         });
     }
 
     private CompletableFuture<OrderView> submitPlan(Session session, NetworkAccess access, Plan plan, String gridKey,
-                                                    String cpuId, String locale) {
+                                                    String cpuId, OrderSource source, String locale) {
         Instant now = clock.instant();
         CraftingOrder order = new CraftingOrder(UUID.randomUUID(), plan.networkId, uuid(session), session.device().id(),
-                OrderSource.MANUAL, labels.target(plan.summary.output()), plan.summary.amount(), OrderState.SUBMITTING,
+                source, labels.target(plan.summary.output()), plan.summary.amount(), OrderState.SUBMITTING,
                 null, null, null, plan.summary.bytes(), now, null, null, null, null, null, null);
         PlayerProfile requester = profile(session);
         return store.write(repos -> {

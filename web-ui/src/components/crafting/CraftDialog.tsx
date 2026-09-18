@@ -20,12 +20,18 @@ export function CraftDialog({
   resource,
   assetVersion,
   initialAmount,
+  preferredCpuId,
+  savedOrder = false,
   onClose,
 }: {
   networkId: string;
   resource: Craftable;
   assetVersion: string;
   initialAmount?: number;
+  /** A saved order's CPU: chosen once the plan shows it can take the job. */
+  preferredCpuId?: string | null;
+  /** The request runs a saved order (spec section 24); it still needs the same confirmation. */
+  savedOrder?: boolean;
   onClose: () => void;
 }) {
   const { t, i18n } = useTranslation();
@@ -62,6 +68,13 @@ export function CraftDialog({
   };
 
   const current: Plan | undefined = plan.data;
+  const readyPlanId = current?.state === 'READY' ? current.id : null;
+  useEffect(() => {
+    if (readyPlanId && preferredCpuId && current?.cpus.some((cpu) => cpu.id === preferredCpuId && cpu.reason === null)) {
+      setCpuId(preferredCpuId);
+    }
+    // Once per calculated plan; the player may pick another CPU afterwards.
+  }, [readyPlanId, preferredCpuId]);
 
   return (
     <div className="dialog-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
@@ -140,7 +153,8 @@ export function CraftDialog({
                       className="button button-primary"
                       disabled={!current.complete || mutations.submit.isPending}
                       onClick={() =>
-                        mutations.submit.mutate({ planId: current.id, cpuId }, { onSuccess: (created) => setOrder(created) })}
+                        mutations.submit.mutate({ planId: current.id, cpuId, source: savedOrder ? 'SAVED_ORDER' : 'MANUAL' },
+                          { onSuccess: (created) => setOrder(created) })}
                     >
                       {mutations.submit.isPending ? t('crafting.starting') : t('crafting.start')}
                     </button>

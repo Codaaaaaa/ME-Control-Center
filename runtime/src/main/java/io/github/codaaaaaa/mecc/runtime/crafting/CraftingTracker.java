@@ -189,6 +189,11 @@ public final class CraftingTracker {
         }
     }
 
+    /** Every order being followed right now. */
+    public List<Tracked> activeOrders() {
+        return List.copyOf(active.values());
+    }
+
     public Optional<Tracked> find(UUID orderId) {
         return Optional.ofNullable(active.get(orderId));
     }

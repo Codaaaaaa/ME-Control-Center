@@ -13,6 +13,7 @@ export const ResourceTile = memo(function ResourceTile({
   assetVersion,
   size,
   selected,
+  watched,
   focusable,
   onSelect,
 }: {
@@ -20,6 +21,7 @@ export const ResourceTile = memo(function ResourceTile({
   assetVersion: string;
   size: number;
   selected: boolean;
+  watched: boolean;
   focusable: boolean;
   onSelect: () => void;
 }) {
@@ -51,6 +53,11 @@ export const ResourceTile = memo(function ResourceTile({
       ) : null}
       {resource.crafting !== null ? (
         <span className="tile-flag tile-flag-crafting" title={t('terminal.crafting')} />
+      ) : null}
+      {watched ? (
+        <span className="tile-flag tile-flag-watched" title={t('insights.watched')}>
+          ★
+        </span>
       ) : null}
       {resource.type !== 'item' ? <span className="tile-type">{resource.type === 'fluid' ? '◆' : '●'}</span> : null}
     </button>

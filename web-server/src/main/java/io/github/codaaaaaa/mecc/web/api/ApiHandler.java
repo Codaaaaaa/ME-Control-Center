@@ -32,9 +32,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Dispatches {@code /api/**} requests to {@link ApiEndpoint}s and writes JSON responses asynchronously.
  *
- * <p>Pipeline: route match → client/scheme resolution (trusted proxies only) → CSRF defenses for
- * state-changing methods (origin check, JSON content type) → bounded body read → device-token
- * authentication → endpoint → JSON response.
+ * <p>Pipeline: route match → client/scheme resolution (trusted proxies only) → per-address rate limit → CSRF
+ * defenses for state-changing methods (origin check, JSON content type) → bounded body read → device-token
+ * authentication → per-player write limit → endpoint → JSON response.
  */
 public final class ApiHandler extends Handler.Abstract.NonBlocking {
     private static final Logger LOGGER = LoggerFactory.getLogger(ApiHandler.class);
@@ -44,18 +44,23 @@ public final class ApiHandler extends Handler.Abstract.NonBlocking {
     static final long DEVICE_COOKIE_MAX_AGE_SECONDS = 400L * 24 * 60 * 60;
     private static final Set<String> BODY_METHODS = Set.of("POST", "PUT", "PATCH");
     private static final Set<String> SAFE_METHODS = Set.of("GET", "HEAD", "OPTIONS");
+    /** Immutable, browser-cached game assets: a freshly opened terminal loads hundreds at once. */
+    private static final Set<String> UNLIMITED_PATHS = Set.of("/api/v1/icons");
 
     private final ApiRoutes routes;
     private final JsonCodec json;
     private final ApiSecurity security;
     private final SessionResolver sessions;
     private final ClientAddressResolver addresses;
+    private final RequestLimits limits;
 
-    public ApiHandler(ApiRoutes routes, JsonCodec json, ApiSecurity security, SessionResolver sessions) {
+    public ApiHandler(ApiRoutes routes, JsonCodec json, ApiSecurity security, SessionResolver sessions,
+                      RequestLimits limits) {
         this.routes = routes;
         this.json = json;
         this.security = security;
         this.sessions = sessions;
+        this.limits = limits;
         this.addresses = new ClientAddressResolver(security.trustedProxies());
     }
 
@@ -88,6 +93,9 @@ public final class ApiHandler extends Handler.Abstract.NonBlocking {
                 || addresses.isSecure(request.isSecure(), remote, request.getHeaders().get(HttpHeader.X_FORWARDED_PROTO));
 
         try {
+            if (!UNLIMITED_PATHS.contains(path) && !limits.allowRequest(client.address())) {
+                throw new MeccException(ErrorCode.RATE_LIMITED, "Too many requests; slow down and try again shortly");
+            }
             if (!SAFE_METHODS.contains(method)) {
                 checkOrigin(request);
             }
@@ -112,6 +120,7 @@ public final class ApiHandler extends Handler.Abstract.NonBlocking {
                     return bytes;
                 })
                 .thenCompose(bytes -> authenticate(route, token, client)
+                        .thenApply(session -> limitWrites(method, session))
                         .thenCompose(session -> invoke(route, new ApiRequest(method, path, request.getHttpURI().getQuery(),
                                 match.parameters(), bytes, client, session.orElse(null), json,
                                 header -> request.getHeaders().get(header)))
@@ -152,6 +161,15 @@ public final class ApiHandler extends Handler.Abstract.NonBlocking {
             }
             return session;
         });
+    }
+
+    private Optional<Session> limitWrites(String method, Optional<Session> session) {
+        if (session.isPresent() && !SAFE_METHODS.contains(method)
+                && !limits.allowWrite(session.get().user().playerUuid())) {
+            throw new CompletionException(new MeccException(ErrorCode.RATE_LIMITED,
+                    "Too many changes in a short time; wait a moment and try again"));
+        }
+        return session;
     }
 
     private static CompletionStage<?> invoke(Route route, ApiRequest request) {

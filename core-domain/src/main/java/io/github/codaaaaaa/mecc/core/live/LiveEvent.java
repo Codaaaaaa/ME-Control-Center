@@ -25,6 +25,10 @@ public record LiveEvent(String type, Instant timestamp, UUID networkId, Object p
     public static final String ORDER_FAILED = "crafting.order.failed";
     /** A pattern was encoded or deployed. Payload: {@code {deploymentId, action, providerId}}. */
     public static final String PATTERN_DEPLOYED = "pattern.deployed";
+    /** One of the viewer's alert rules fired (spec section 23). Sent to that player only. Payload: an alert event view. */
+    public static final String ALERT_TRIGGERED = "alert.triggered";
+    /** A fired condition no longer holds. Sent to the rule's owner only. */
+    public static final String ALERT_RESOLVED = "alert.resolved";
     public static final String ERROR = "error";
     public static final String PONG = "pong";
 

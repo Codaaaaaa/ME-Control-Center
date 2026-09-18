@@ -63,6 +63,13 @@ public interface PatternService {
      */
     CompletionStage<Void> renameProvider(Session session, UUID networkId, String providerId, String name);
 
+    /**
+     * Changes priority, blocking mode, lock-crafting mode, or Pattern Access Terminal visibility (spec section 15).
+     * Requires {@code PROVIDER_SETTINGS}. Fails with {@code VALIDATION_FAILED}, {@code PROVIDER_NOT_FOUND}, or
+     * {@code PROVIDER_NOT_RENAMABLE} for containers without these settings.
+     */
+    CompletionStage<Void> configureProvider(Session session, UUID networkId, String providerId, ProviderSettings settings);
+
     /** Checks a definition against the game without changing anything. Requires {@code PATTERN_STUDIO}. */
     CompletionStage<ValidationView> validate(Session session, UUID networkId, PatternDefinition definition, String locale);
 

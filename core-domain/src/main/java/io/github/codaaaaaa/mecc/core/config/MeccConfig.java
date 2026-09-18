@@ -12,7 +12,9 @@ public record MeccConfig(
         ResourcesConfig resources,
         AssetsConfig assets,
         CraftingConfig crafting,
-        PatternsConfig patterns) {
+        PatternsConfig patterns,
+        AnalyticsConfig analytics,
+        AlertsConfig alerts) {
 
     public MeccConfig {
         Objects.requireNonNull(web, "web");
@@ -22,11 +24,14 @@ public record MeccConfig(
         Objects.requireNonNull(assets, "assets");
         Objects.requireNonNull(crafting, "crafting");
         Objects.requireNonNull(patterns, "patterns");
+        Objects.requireNonNull(analytics, "analytics");
+        Objects.requireNonNull(alerts, "alerts");
     }
 
     public static MeccConfig defaults() {
         return new MeccConfig(WebConfig.defaults(), SecurityConfig.defaults(), NetworksConfig.defaults(),
-                ResourcesConfig.defaults(), AssetsConfig.defaults(), CraftingConfig.defaults(), PatternsConfig.defaults());
+                ResourcesConfig.defaults(), AssetsConfig.defaults(), CraftingConfig.defaults(), PatternsConfig.defaults(),
+                AnalyticsConfig.defaults(), AlertsConfig.defaults());
     }
 
     /** Returns human-readable problems; empty when valid. */
@@ -38,6 +43,8 @@ public record MeccConfig(
         problems.addAll(assets.validate());
         problems.addAll(crafting.validate());
         problems.addAll(patterns.validate());
+        problems.addAll(analytics.validate());
+        problems.addAll(alerts.validate());
         return problems;
     }
 }

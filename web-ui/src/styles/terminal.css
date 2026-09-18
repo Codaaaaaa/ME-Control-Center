@@ -341,3 +341,11 @@
     box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.5);
   }
 }
+
+.tile-flag-watched {
+  left: auto;
+  right: 3px;
+  top: 12px;
+  font-size: 10px;
+  color: var(--warning);
+}

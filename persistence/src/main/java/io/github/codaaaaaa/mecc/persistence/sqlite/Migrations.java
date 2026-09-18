@@ -176,6 +176,145 @@ final class Migrations {
                         at              INTEGER NOT NULL
                     );
                     CREATE INDEX pattern_deployments_network_at ON pattern_deployments (network_id, at)
+                    """),
+            new Migration(4, "watchlists and resource time series", """
+                    CREATE TABLE watchlist_entries (
+                        id                TEXT PRIMARY KEY,
+                        player_uuid       TEXT NOT NULL REFERENCES users (player_uuid),
+                        network_id        TEXT NOT NULL REFERENCES web_networks (id) ON DELETE CASCADE,
+                        resource_id       TEXT NOT NULL,
+                        resource_names    TEXT NOT NULL DEFAULT '{}',
+                        resource_mod_id   TEXT NOT NULL,
+                        resource_icon_key TEXT NOT NULL,
+                        unit_symbol       TEXT,
+                        unit_amount       INTEGER,
+                        created_at        INTEGER NOT NULL,
+                        UNIQUE (player_uuid, network_id, resource_id)
+                    );
+                    CREATE INDEX watchlist_entries_series ON watchlist_entries (network_id, resource_id);
+
+                    CREATE TABLE resource_samples_15s (
+                        network_id  TEXT NOT NULL REFERENCES web_networks (id) ON DELETE CASCADE,
+                        resource_id TEXT NOT NULL,
+                        at          INTEGER NOT NULL,
+                        amount      INTEGER NOT NULL,
+                        PRIMARY KEY (network_id, resource_id, at)
+                    ) WITHOUT ROWID;
+                    CREATE INDEX resource_samples_15s_at ON resource_samples_15s (at);
+
+                    CREATE TABLE resource_samples_1m (
+                        network_id   TEXT NOT NULL REFERENCES web_networks (id) ON DELETE CASCADE,
+                        resource_id  TEXT NOT NULL,
+                        bucket       INTEGER NOT NULL,
+                        first_amount INTEGER NOT NULL,
+                        last_amount  INTEGER NOT NULL,
+                        min_amount   INTEGER NOT NULL,
+                        max_amount   INTEGER NOT NULL,
+                        sum_amount   REAL NOT NULL,
+                        sample_count INTEGER NOT NULL,
+                        PRIMARY KEY (network_id, resource_id, bucket)
+                    ) WITHOUT ROWID;
+                    CREATE INDEX resource_samples_1m_bucket ON resource_samples_1m (bucket);
+
+                    CREATE TABLE resource_samples_5m (
+                        network_id   TEXT NOT NULL REFERENCES web_networks (id) ON DELETE CASCADE,
+                        resource_id  TEXT NOT NULL,
+                        bucket       INTEGER NOT NULL,
+                        first_amount INTEGER NOT NULL,
+                        last_amount  INTEGER NOT NULL,
+                        min_amount   INTEGER NOT NULL,
+                        max_amount   INTEGER NOT NULL,
+                        sum_amount   REAL NOT NULL,
+                        sample_count INTEGER NOT NULL,
+                        PRIMARY KEY (network_id, resource_id, bucket)
+                    ) WITHOUT ROWID;
+                    CREATE INDEX resource_samples_5m_bucket ON resource_samples_5m (bucket);
+
+                    CREATE TABLE resource_samples_1h (
+                        network_id   TEXT NOT NULL REFERENCES web_networks (id) ON DELETE CASCADE,
+                        resource_id  TEXT NOT NULL,
+                        bucket       INTEGER NOT NULL,
+                        first_amount INTEGER NOT NULL,
+                        last_amount  INTEGER NOT NULL,
+                        min_amount   INTEGER NOT NULL,
+                        max_amount   INTEGER NOT NULL,
+                        sum_amount   REAL NOT NULL,
+                        sample_count INTEGER NOT NULL,
+                        PRIMARY KEY (network_id, resource_id, bucket)
+                    ) WITHOUT ROWID;
+                    CREATE INDEX resource_samples_1h_bucket ON resource_samples_1h (bucket)
+                    """),
+            new Migration(5, "saved orders and alerts", """
+                    CREATE TABLE saved_orders (
+                        id                TEXT PRIMARY KEY,
+                        player_uuid       TEXT NOT NULL REFERENCES users (player_uuid),
+                        network_id        TEXT NOT NULL REFERENCES web_networks (id) ON DELETE CASCADE,
+                        name              TEXT NOT NULL,
+                        resource_id       TEXT NOT NULL,
+                        resource_names    TEXT NOT NULL DEFAULT '{}',
+                        resource_mod_id   TEXT NOT NULL,
+                        resource_icon_key TEXT NOT NULL,
+                        unit_symbol       TEXT,
+                        unit_amount       INTEGER,
+                        amount            INTEGER NOT NULL,
+                        cpu_id            TEXT,
+                        notes             TEXT NOT NULL DEFAULT '',
+                        created_at        INTEGER NOT NULL,
+                        updated_at        INTEGER NOT NULL
+                    );
+                    CREATE INDEX saved_orders_owner ON saved_orders (player_uuid, network_id);
+
+                    CREATE TABLE alert_rules (
+                        id                TEXT PRIMARY KEY,
+                        player_uuid       TEXT NOT NULL REFERENCES users (player_uuid),
+                        network_id        TEXT NOT NULL REFERENCES web_networks (id) ON DELETE CASCADE,
+                        type              TEXT NOT NULL,
+                        resource_id       TEXT,
+                        resource_names    TEXT,
+                        resource_mod_id   TEXT,
+                        resource_icon_key TEXT,
+                        unit_symbol       TEXT,
+                        unit_amount       INTEGER,
+                        threshold         INTEGER,
+                        cooldown_minutes  INTEGER NOT NULL,
+                        enabled           INTEGER NOT NULL,
+                        state             TEXT NOT NULL DEFAULT 'OK',
+                        notified_at       INTEGER,
+                        created_at        INTEGER NOT NULL
+                    );
+                    CREATE INDEX alert_rules_owner ON alert_rules (player_uuid, network_id);
+
+                    CREATE TABLE alert_events (
+                        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                        rule_id           TEXT NOT NULL REFERENCES alert_rules (id) ON DELETE CASCADE,
+                        player_uuid       TEXT NOT NULL,
+                        network_id        TEXT NOT NULL REFERENCES web_networks (id) ON DELETE CASCADE,
+                        type              TEXT NOT NULL,
+                        kind              TEXT NOT NULL,
+                        at                INTEGER NOT NULL,
+                        resource_id       TEXT,
+                        resource_names    TEXT,
+                        resource_mod_id   TEXT,
+                        resource_icon_key TEXT,
+                        unit_symbol       TEXT,
+                        unit_amount       INTEGER,
+                        value             INTEGER,
+                        threshold         INTEGER,
+                        order_id          TEXT
+                    );
+                    CREATE INDEX alert_events_owner ON alert_events (player_uuid, id);
+                    CREATE INDEX alert_events_rule ON alert_events (rule_id);
+                    CREATE INDEX alert_events_at ON alert_events (at);
+
+                    CREATE TABLE alert_settings (
+                        player_uuid         TEXT PRIMARY KEY REFERENCES users (player_uuid),
+                        discord_webhook_url TEXT,
+                        webhook_url         TEXT,
+                        locale              TEXT NOT NULL DEFAULT 'en_us'
+                    )
+                    """),
+            new Migration(6, "percentage-change alert windows", """
+                    ALTER TABLE alert_rules ADD COLUMN window_minutes INTEGER
                     """));
 
     private Migrations() {

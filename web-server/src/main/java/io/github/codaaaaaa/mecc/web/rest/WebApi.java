@@ -1,12 +1,19 @@
 package io.github.codaaaaaa.mecc.web.rest;
 
+import io.github.codaaaaaa.mecc.core.admin.AdminService;
+import io.github.codaaaaaa.mecc.core.alerts.AlertService;
+import io.github.codaaaaaa.mecc.core.alerts.AlertType;
 import io.github.codaaaaaa.mecc.core.assets.IconService;
 import io.github.codaaaaaa.mecc.core.auth.AuthService;
 import io.github.codaaaaaa.mecc.core.auth.AuthViews.DeviceView;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingService;
 import io.github.codaaaaaa.mecc.core.crafting.OrderFilter;
+import io.github.codaaaaaa.mecc.core.crafting.OrderSource;
+import io.github.codaaaaaa.mecc.core.crafting.SavedOrderService;
 import io.github.codaaaaaa.mecc.core.error.ErrorCode;
 import io.github.codaaaaaa.mecc.core.error.MeccException;
+import io.github.codaaaaaa.mecc.core.insights.InsightsRange;
+import io.github.codaaaaaa.mecc.core.insights.InsightsService;
 import io.github.codaaaaaa.mecc.core.networks.NetworkService;
 import io.github.codaaaaaa.mecc.core.networks.NetworkViews.CandidateView;
 import io.github.codaaaaaa.mecc.core.networks.NetworkViews.MemberView;
@@ -15,6 +22,7 @@ import io.github.codaaaaaa.mecc.core.patterns.PatternDefinition;
 import io.github.codaaaaaa.mecc.core.patterns.PatternService;
 import io.github.codaaaaaa.mecc.core.patterns.PatternStack;
 import io.github.codaaaaaa.mecc.core.patterns.PatternType;
+import io.github.codaaaaaa.mecc.core.patterns.ProviderSettings;
 import io.github.codaaaaaa.mecc.core.permissions.NetworkRole;
 import io.github.codaaaaaa.mecc.core.resources.ResourceId;
 import io.github.codaaaaaa.mecc.core.resources.ResourceQuery;
@@ -28,6 +36,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 
 /**
  * The versioned public HTTP API ({@code /api/v1}, spec section 30). Maps HTTP onto core-domain service
@@ -37,6 +47,7 @@ public final class WebApi {
     private static final String V1 = "/api/v1";
     private static final int DEFAULT_PAGE_SIZE = 120;
     private static final int DEFAULT_ORDER_PAGE = 30;
+    private static final int DEFAULT_AUDIT_PAGE = 50;
     /** Icon URLs include the asset version, so a cached icon is only stale after an asset change. */
     private static final String ICON_CACHE_CONTROL = "public, max-age=604800, immutable";
 
@@ -44,7 +55,9 @@ public final class WebApi {
     }
 
     public record Services(StatusService status, AuthService auth, NetworkService networks, ResourceService resources,
-                           IconService icons, CraftingService crafting, PatternService patterns) {
+                           IconService icons, CraftingService crafting, PatternService patterns,
+                           InsightsService insights, AdminService admin, SavedOrderService savedOrders,
+                           AlertService alerts) {
         public Services {
             Objects.requireNonNull(status, "status");
             Objects.requireNonNull(auth, "auth");
@@ -53,6 +66,10 @@ public final class WebApi {
             Objects.requireNonNull(icons, "icons");
             Objects.requireNonNull(crafting, "crafting");
             Objects.requireNonNull(patterns, "patterns");
+            Objects.requireNonNull(insights, "insights");
+            Objects.requireNonNull(admin, "admin");
+            Objects.requireNonNull(savedOrders, "savedOrders");
+            Objects.requireNonNull(alerts, "alerts");
         }
     }
 
@@ -75,7 +92,8 @@ public final class WebApi {
     record PlanRequest(String resourceId, Long amount, String locale) {
     }
 
-    record SubmitRequest(String planId, String cpuId, String locale) {
+    /** @param source {@code SAVED_ORDER} when a saved order was run, else omitted */
+    record SubmitRequest(String planId, String cpuId, String source, String locale) {
     }
 
     record CpuCancelRequest(String jobId) {
@@ -99,6 +117,20 @@ public final class WebApi {
     record EncodeRequest(DefinitionBody definition, String draftId, String providerId, String locale) {
     }
 
+    record WatchRequest(String networkId, String resourceId, String locale) {
+    }
+
+    record SavedOrderRequest(String name, String resourceId, Long amount, String cpuId, String notes, String locale) {
+    }
+
+    record RuleRequest(String networkId, String type, String resourceId, Long threshold, Integer windowMinutes,
+                       Integer cooldownMinutes, Boolean enabled, String locale) {
+    }
+
+    /** Every field is optional; only the given ones change. */
+    record ProviderRequest(String name, Integer priority, Boolean blocking, String lockMode, Boolean visibleInTerminal) {
+    }
+
     // Response wrappers: named collections keep responses extensible.
     record DeviceList(List<DeviceView> devices) {
     }
@@ -120,6 +152,10 @@ public final class WebApi {
         NetworkService networks = services.networks();
         CraftingService crafting = services.crafting();
         PatternService patterns = services.patterns();
+        InsightsService insights = services.insights();
+        AdminService admin = services.admin();
+        SavedOrderService savedOrders = services.savedOrders();
+        AlertService alerts = services.alerts();
 
         return ApiRoutes.builder()
                 .publicGet(V1 + "/status", request -> services.status().currentStatus())
@@ -203,7 +239,9 @@ public final class WebApi {
                 .post(V1 + "/networks/{networkId}/crafting/orders", request -> {
                     SubmitRequest body = request.body(SubmitRequest.class);
                     String cpuId = body.cpuId() == null || body.cpuId().isBlank() ? null : body.cpuId();
-                    return crafting.submit(request.session(), networkId(request), body.planId(), cpuId, locale(body.locale()))
+                    OrderSource source = "SAVED_ORDER".equals(body.source()) ? OrderSource.SAVED_ORDER : OrderSource.MANUAL;
+                    return crafting.submit(request.session(), networkId(request), body.planId(), cpuId, source,
+                                    locale(body.locale()))
                             .thenApply(ApiResponse::created);
                 })
                 .get(V1 + "/networks/{networkId}/crafting/orders", request -> crafting.orders(request.session(),
@@ -214,6 +252,24 @@ public final class WebApi {
                         networkId(request), orderId(request), locale(request)))
                 .post(V1 + "/networks/{networkId}/crafting/orders/{orderId}/cancel", request -> crafting.cancel(
                         request.session(), networkId(request), orderId(request), locale(request)))
+
+                // Saved Craft Orders (spec section 24): personal presets.
+                .get(V1 + "/networks/{networkId}/crafting/saved-orders", request -> savedOrders.list(request.session(),
+                        networkId(request), locale(request)))
+                .post(V1 + "/networks/{networkId}/crafting/saved-orders", request -> {
+                    SavedOrderRequest body = request.body(SavedOrderRequest.class);
+                    return savedOrders.create(request.session(), networkId(request), savedOrderInput(body),
+                            locale(body.locale())).thenApply(ApiResponse::created);
+                })
+                .patch(V1 + "/networks/{networkId}/crafting/saved-orders/{savedOrderId}", request -> {
+                    SavedOrderRequest body = request.body(SavedOrderRequest.class);
+                    return savedOrders.update(request.session(), networkId(request),
+                            request.uuidParameter("savedOrderId", ErrorCode.NOT_FOUND), savedOrderInput(body),
+                            locale(body.locale()));
+                })
+                .delete(V1 + "/networks/{networkId}/crafting/saved-orders/{savedOrderId}", request -> savedOrders.delete(
+                                request.session(), networkId(request), request.uuidParameter("savedOrderId", ErrorCode.NOT_FOUND))
+                        .thenApply(ignored -> ApiResponse.noContent()))
 
                 // Pattern Studio (spec sections 13-17). Drafts are personal; network routes check the role.
                 .get(V1 + "/patterns/drafts", request -> patterns.drafts(request.session(), locale(request)))
@@ -232,10 +288,23 @@ public final class WebApi {
                         request.queryParameter("input", null), locale(request)))
                 .get(V1 + "/networks/{networkId}/providers", request -> patterns.providers(request.session(),
                         networkId(request), locale(request)))
-                .patch(V1 + "/networks/{networkId}/providers/{providerId}", request -> patterns.renameProvider(
-                                request.session(), networkId(request), request.pathParameter("providerId"),
-                                request.body(NameRequest.class).name())
-                        .thenApply(ignored -> ApiResponse.noContent()))
+                .patch(V1 + "/networks/{networkId}/providers/{providerId}", request -> {
+                    ProviderRequest body = request.body(ProviderRequest.class);
+                    UUID networkId = networkId(request);
+                    String providerId = request.pathParameter("providerId");
+                    ProviderSettings settings = new ProviderSettings(body.priority(), body.blocking(), body.lockMode(),
+                            body.visibleInTerminal());
+                    if (body.name() == null && settings.isEmpty()) {
+                        throw MeccException.validation("name", "Nothing to change");
+                    }
+                    CompletionStage<Void> renamed = body.name() == null
+                            ? CompletableFuture.completedFuture(null)
+                            : patterns.renameProvider(request.session(), networkId, providerId, body.name());
+                    return renamed.thenCompose(ignored -> settings.isEmpty()
+                                    ? CompletableFuture.<Void>completedFuture(null)
+                                    : patterns.configureProvider(request.session(), networkId, providerId, settings))
+                            .thenApply(ignored -> ApiResponse.noContent());
+                })
                 .post(V1 + "/networks/{networkId}/patterns/validate", request -> {
                     ValidateRequest body = request.body(ValidateRequest.class);
                     return patterns.validate(request.session(), networkId(request), definition(body.definition()),
@@ -259,6 +328,58 @@ public final class WebApi {
                 .get(V1 + "/networks/{networkId}/patterns/deployments", request -> patterns.deployments(
                         request.session(), networkId(request), locale(request)))
 
+                // Watchlist and history (spec sections 21-22).
+                .get(V1 + "/watchlist", request -> insights.watchlist(request.session(),
+                        requiredUuid(request.queryParameter("networkId", null), "networkId"), locale(request)))
+                .post(V1 + "/watchlist", request -> {
+                    WatchRequest body = request.body(WatchRequest.class);
+                    return insights.watch(request.session(), requiredUuid(body.networkId(), "networkId"),
+                            body.resourceId(), locale(body.locale())).thenApply(ApiResponse::created);
+                })
+                .delete(V1 + "/watchlist/{entryId}", request -> insights.unwatch(request.session(),
+                                request.uuidParameter("entryId", ErrorCode.NOT_FOUND))
+                        .thenApply(ignored -> ApiResponse.noContent()))
+                .get(V1 + "/insights/series", request -> {
+                    String range = request.queryParameter("range", "1d");
+                    return insights.series(request.session(),
+                            requiredUuid(request.queryParameter("networkId", null), "networkId"),
+                            InsightsRange.parse(range).orElseThrow(() -> MeccException.validation("range",
+                                    "range must be one of 1h, 6h, 1d, 7d, 30d, 180d, 360d, max")),
+                            request.queryParameter("resource", null));
+                })
+
+                // Alerts (spec section 23): the caller's own rules, events, and notification channels.
+                .get(V1 + "/alerts", request -> alerts.events(request.session(),
+                        optionalUuid(request.queryParameter("networkId", null), "networkId"), before(request),
+                        request.intParameter("limit", DEFAULT_AUDIT_PAGE, 1, 200), locale(request)))
+                .get(V1 + "/alerts/rules", request -> alerts.rules(request.session(),
+                        requiredUuid(request.queryParameter("networkId", null), "networkId"), locale(request)))
+                .post(V1 + "/alerts/rules", request -> {
+                    RuleRequest body = request.body(RuleRequest.class);
+                    return alerts.createRule(request.session(), requiredUuid(body.networkId(), "networkId"),
+                            ruleInput(body), locale(body.locale())).thenApply(ApiResponse::created);
+                })
+                .patch(V1 + "/alerts/rules/{ruleId}", request -> {
+                    RuleRequest body = request.body(RuleRequest.class);
+                    return alerts.updateRule(request.session(), request.uuidParameter("ruleId", ErrorCode.NOT_FOUND),
+                            ruleInput(body), locale(body.locale()));
+                })
+                .delete(V1 + "/alerts/rules/{ruleId}", request -> alerts.deleteRule(request.session(),
+                                request.uuidParameter("ruleId", ErrorCode.NOT_FOUND))
+                        .thenApply(ignored -> ApiResponse.noContent()))
+                .get(V1 + "/alerts/settings", request -> alerts.settings(request.session()))
+                .patch(V1 + "/alerts/settings", request -> alerts.updateSettings(request.session(),
+                        request.body(AlertService.SettingsInput.class)))
+                .post(V1 + "/alerts/test", request -> alerts.test(request.session()))
+
+                // Audit log and server administration (spec section 35, milestone 6).
+                .get(V1 + "/networks/{networkId}/audit", request -> admin.auditLog(request.session(), networkId(request),
+                        before(request), request.intParameter("limit", DEFAULT_AUDIT_PAGE, 1, 200)))
+                .get(V1 + "/admin", request -> admin.overview(request.session()))
+                .get(V1 + "/admin/audit", request -> admin.auditLog(request.session(), null, before(request),
+                        request.intParameter("limit", DEFAULT_AUDIT_PAGE, 1, 200)))
+                .post(V1 + "/admin/backups", request -> admin.backup(request.session()).thenApply(ApiResponse::created))
+
                 // Icons are static game assets; they may be cached for a long time because the URL carries
                 // the asset version (spec section 48).
                 .get(V1 + "/icons", request -> services.icons().icon(request.queryParameter("key", ""))
@@ -267,6 +388,32 @@ public final class WebApi {
                                 .orElseThrow(() -> new MeccException(ErrorCode.ICON_NOT_FOUND,
                                         "No icon is available for this resource"))))
                 .build();
+    }
+
+    private static Long before(ApiRequest request) {
+        String value = request.queryParameter("before", null);
+        try {
+            return value == null ? null : Long.valueOf(value);
+        } catch (NumberFormatException e) {
+            throw MeccException.validation("before", "before must be an audit entry ID");
+        }
+    }
+
+    private static SavedOrderService.SavedOrderInput savedOrderInput(SavedOrderRequest body) {
+        return new SavedOrderService.SavedOrderInput(body.name(), body.resourceId(), body.amount(), body.cpuId(), body.notes());
+    }
+
+    private static AlertService.RuleInput ruleInput(RuleRequest body) {
+        AlertType type = null;
+        if (body.type() != null) {
+            try {
+                type = AlertType.valueOf(body.type());
+            } catch (IllegalArgumentException e) {
+                throw MeccException.validation("type", "Unknown alert type");
+            }
+        }
+        return new AlertService.RuleInput(type, body.resourceId(), body.threshold(), body.windowMinutes(),
+                body.cooldownMinutes(), body.enabled());
     }
 
     private static UUID draftId(ApiRequest request) {
@@ -282,6 +429,14 @@ public final class WebApi {
         } catch (IllegalArgumentException e) {
             throw MeccException.validation(field, field + " is not a valid ID");
         }
+    }
+
+    private static UUID requiredUuid(String value, String field) {
+        UUID id = optionalUuid(value, field);
+        if (id == null) {
+            throw MeccException.validation(field, field + " is required");
+        }
+        return id;
     }
 
     private static PatternService.DraftInput draftInput(DraftRequest body) {

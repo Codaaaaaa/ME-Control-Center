@@ -10,7 +10,10 @@
     "terminal": "Terminal",
     "crafting": "Crafting",
     "cpus": "CPUs",
-    "patterns": "Patterns"
+    "patterns": "Patterns",
+    "insights": "Insights",
+    "more": "More",
+    "alerts": "Alerts"
   },
   "language": {
     "label": "Language",
@@ -44,7 +47,7 @@
     "permission": "Your role does not allow this.",
     "notFound": "It does not exist or you do not have access.",
     "unavailable": "The Minecraft server is busy or not running. Try again in a moment.",
-    "rateLimited": "Too many attempts. Wait a few minutes and try again.",
+    "rateLimited": "Too many requests. Wait a moment and try again.",
     "error": "Something went wrong ({{code}}).",
     "networkOffline": "The ME network is not loaded right now, so live data cannot be read.",
     "codes": {
@@ -177,7 +180,8 @@
     "tabs": {
       "devices": "Devices",
       "networks": "Networks",
-      "preferences": "Preferences"
+      "preferences": "Preferences",
+      "server": "Server"
     }
   },
   "devices": {
@@ -387,7 +391,8 @@
       "ACTIVE": "Active",
       "COMPLETED": "Completed",
       "FAILED": "Failed",
-      "CANCELLED": "Cancelled"
+      "CANCELLED": "Cancelled",
+      "SAVED": "Saved"
     },
     "ordersError": "Unable to load crafting orders",
     "empty": {
@@ -399,7 +404,23 @@
     "emptyHint": "Open a craftable resource in the Terminal and choose Craft.",
     "loadMore": "Load more",
     "activeTitle": "Active crafting",
-    "activeNone": "No crafting CPU is busy."
+    "activeNone": "No crafting CPU is busy.",
+    "saved": {
+      "error": "Saved orders could not be loaded",
+      "none": "No saved orders yet",
+      "noneHint": "Choose “Save as preset” on any order to keep its resource, amount, and CPU for next time.",
+      "run": "Run",
+      "edit": "Edit",
+      "clone": "Clone",
+      "delete": "Delete",
+      "copyName": "{{name}} (copy)",
+      "saveAsPreset": "Save as preset",
+      "newTitle": "Save as preset",
+      "editTitle": "Edit saved order",
+      "name": "Name",
+      "notes": "Notes",
+      "confirmHint": "Running a saved order calculates a plan and asks for confirmation, like any craft."
+    }
   },
   "cpus": {
     "subtitle": "Crafting CPUs of the network",
@@ -433,7 +454,8 @@
     "tabs": {
       "studio": "Studio",
       "providers": "Providers",
-      "history": "History"
+      "history": "History",
+      "duplicates": "Duplicates"
     },
     "library": "Pattern drafts",
     "new": "New pattern",
@@ -572,7 +594,8 @@
       "kind": "Type",
       "machine": "Machine",
       "rename": "Rename",
-      "renameHint": "Leave empty to remove the custom name"
+      "renameHint": "Leave empty to remove the custom name",
+      "settings": "Settings"
     },
     "lockModes": {
       "NONE": "Never",
@@ -588,11 +611,238 @@
       "ENCODE": "Encoded to storage",
       "DEPLOY": "Deployed",
       "success": "Done"
+    },
+    "duplicates": {
+      "explain": "Patterns in several providers that make the same thing. Often intended, for parallel machines; AE2 prefers the higher priority.",
+      "filter": "Show",
+      "filters": {
+        "all": "All duplicates",
+        "same": "Same inputs",
+        "different": "Different inputs"
+      },
+      "same": "Same inputs",
+      "different": "Different inputs",
+      "priority": "Priority {{priority}}",
+      "slot": "Slot {{slot}}",
+      "none": "No duplicate patterns",
+      "noneHint": "No two loaded providers make the same primary output."
     }
   },
   "update": {
     "title": "A new version of ME Control Center is installed",
     "body": "This page is still running the previous version. Reload to use the new one.",
     "reload": "Reload"
+  },
+  "insights": {
+    "title": "Insights",
+    "subtitle": "History of the resources you watch",
+    "watchlist": "Watchlist",
+    "trend": "Inventory trend",
+    "mode": "Chart mode",
+    "range": "Range",
+    "modes": {
+      "quantity": "Quantity",
+      "change": "Change %"
+    },
+    "ranges": {
+      "1h": "1h",
+      "6h": "6h",
+      "1d": "1d",
+      "7d": "7d",
+      "30d": "30d",
+      "180d": "180d",
+      "360d": "360d",
+      "max": "Max"
+    },
+    "watch": "Watch",
+    "unwatch": "Unwatch",
+    "watched": "Watched",
+    "open": "Open",
+    "emptyTitle": "Nothing watched yet",
+    "emptyBody": "Open a resource in the Terminal and choose Watch to follow its stock over time.",
+    "openTerminal": "Open Terminal",
+    "noDataTitle": "No history yet",
+    "noDataBody": "Watched resources are sampled every few seconds while the network is loaded. The first points appear shortly.",
+    "samplingDisabled": "The server administrator has turned off resource history (analytics.enabled = false).",
+    "zeroStart": "Some resources start this range at 0, so no percentage can be computed for them. Switch to Quantity to see them.",
+    "updated": "Amounts updated {{time}}",
+    "offlineAmounts": "Network not loaded: current amounts unavailable",
+    "count": "{{used}} of {{limit}} watched",
+    "change6h": "Last 6 hours"
+  },
+  "audit": {
+    "title": "Audit log",
+    "serverTitle": "Server audit log",
+    "empty": "No recorded actions yet",
+    "more": "Show older",
+    "console": "server console",
+    "by": "by {{name}}",
+    "target": "target: {{target}}",
+    "deletedNetwork": "deleted network",
+    "results": {
+      "SUCCESS": "Succeeded",
+      "DENIED": "Denied",
+      "FAILED": "Failed"
+    },
+    "actions": {
+      "DEVICE_PAIR": "Device paired",
+      "DEVICE_RENAME": "Device renamed",
+      "DEVICE_REVOKE": "Device revoked",
+      "NETWORK_CLAIM": "Network enrolled",
+      "NETWORK_RENAME": "Network renamed",
+      "NETWORK_DELETE": "Network removed",
+      "NETWORK_SHARE": "Network shared",
+      "NETWORK_MEMBER_ROLE_CHANGE": "Member role changed",
+      "NETWORK_MEMBER_REMOVE": "Member removed",
+      "CRAFT_SUBMIT": "Craft started",
+      "CRAFT_CANCEL": "Craft cancelled",
+      "PATTERN_ENCODE": "Pattern encoded",
+      "PATTERN_DEPLOY": "Pattern deployed",
+      "PROVIDER_SETTING_CHANGE": "Provider settings changed",
+      "DATABASE_BACKUP": "Database backed up"
+    }
+  },
+  "admin": {
+    "title": "Server administration",
+    "server": "Server",
+    "version": "ME Control Center",
+    "platform": "Platform",
+    "database": "Database",
+    "schemaVersion": "Schema version",
+    "size": "Size",
+    "backupHint": "Backups are consistent copies written while the server runs. One is also made automatically before every database upgrade; the newest 10 are kept.",
+    "noBackups": "No backups yet.",
+    "backUpNow": "Back up now",
+    "backingUp": "Backing up…",
+    "configuration": "Configuration",
+    "configHint": "Effective settings, read from {{file}}. Edit that file and restart the server to change them.",
+    "contentPacks": "Content packs",
+    "noContentPacks": "No content packs. Icons and names come from the server's own assets; see the README on the optional Client Exporter.",
+    "packStatus": {
+      "MATCH": "Matches this server",
+      "MISMATCH": "Different modpack version",
+      "SKIPPED": "Not used"
+    },
+    "packFingerprint": "Fingerprint {{hash}}",
+    "packIcons_one": "{{count}} icon",
+    "packIcons_other": "{{count}} icons"
+  },
+  "alerts": {
+    "subtitle": "Get told when stock runs low, the network goes down, or crafts finish.",
+    "rules": "Your alert rules",
+    "rulesHint": "Rules are personal and checked by the server, even while this page is closed.",
+    "noRules": "No rules yet. Add one below.",
+    "noRulesShort": "No alert rules on this network.",
+    "allClear": "All clear.",
+    "current": "Current alerts",
+    "manage": "Manage alerts",
+    "active": "Active",
+    "ok": "OK",
+    "disabled": "Off",
+    "enable": "Turn on",
+    "disable": "Turn off",
+    "delete": "Delete",
+    "cooldown": "at most every {{minutes}} min",
+    "lastNotified": "last alert {{time}}",
+    "newRule": "New rule",
+    "type": "When",
+    "resource": "Resource",
+    "resourceOptional": "Resource (optional)",
+    "choose": "Choose…",
+    "change": "Change",
+    "anyResource": "Any resource",
+    "threshold": "Amount",
+    "thresholdIn": "Amount in {{unit}}",
+    "thresholdPercent": "Energy percent",
+    "cooldownLabel": "Minutes between alerts",
+    "add": "Add rule",
+    "blankPatternPreset": "Blank Pattern below 32",
+    "full": "You have reached the rule limit.",
+    "recent": "Recent alerts",
+    "noEvents": "Nothing reported yet.",
+    "channels": "Notifications",
+    "channelsHint": "Alerts always appear here. They can also pop up in this browser and go to Discord or any webhook.",
+    "browserOn": "Browser notifications on",
+    "browserOff": "Browser notifications off",
+    "browserEnabled": "This browser shows notifications while ME Control Center is open.",
+    "browserDenied": "This browser blocks notifications for this site.",
+    "browserUnsupported": "This browser does not support notifications.",
+    "webhooksOff": "Webhooks are turned off on this server.",
+    "discord": "Discord webhook URL",
+    "webhook": "Generic webhook URL (JSON POST)",
+    "webhookHint": "Leave a field empty to stop sending there. Addresses inside the server's own network are not allowed.",
+    "saved": "Saved.",
+    "test": "Send test",
+    "testing": "Sending…",
+    "delivered": "Delivered",
+    "channel": {
+      "discord": "Discord",
+      "webhook": "Webhook"
+    },
+    "kind": {
+      "TRIGGERED": "Alert",
+      "RESOLVED": "Resolved"
+    },
+    "types": {
+      "RESOURCE_BELOW": "Amount below",
+      "RESOURCE_ABOVE": "Amount above",
+      "NETWORK_OFFLINE": "Network offline",
+      "ENERGY_LOW": "Energy below",
+      "CPU_SATURATED": "All crafting CPUs busy",
+      "CRAFT_COMPLETED": "My craft completed",
+      "CRAFT_FAILED": "My craft failed",
+      "RESOURCE_DROP": "Amount dropped by",
+      "RESOURCE_RISE": "Amount rose by",
+      "CRAFT_STALLED": "My craft made no progress for"
+    },
+    "message": {
+      "RESOURCE_BELOW": {
+        "TRIGGERED": "{{resource}} is below {{threshold}}: {{value}} left",
+        "RESOLVED": "{{resource}} is back at {{value}}"
+      },
+      "RESOURCE_ABOVE": {
+        "TRIGGERED": "{{resource}} is above {{threshold}}: {{value}}",
+        "RESOLVED": "{{resource}} is back at {{value}}"
+      },
+      "NETWORK_OFFLINE": {
+        "TRIGGERED": "The network is offline",
+        "RESOLVED": "The network is back online"
+      },
+      "ENERGY_LOW": {
+        "TRIGGERED": "Energy is low: {{value}}% (below {{threshold}}%)",
+        "RESOLVED": "Energy recovered: {{value}}%"
+      },
+      "CPU_SATURATED": {
+        "TRIGGERED": "All crafting CPUs are busy",
+        "RESOLVED": "A crafting CPU is free again"
+      },
+      "CRAFT_COMPLETED": {
+        "TRIGGERED": "Crafting finished: {{value}} × {{resource}}",
+        "RESOLVED": "Crafting finished: {{value}} × {{resource}}"
+      },
+      "CRAFT_FAILED": {
+        "TRIGGERED": "Crafting failed: {{value}} × {{resource}}",
+        "RESOLVED": "Crafting failed: {{value}} × {{resource}}"
+      },
+      "RESOURCE_DROP": {
+        "TRIGGERED": "{{resource}} dropped {{value}}% (limit {{threshold}}%)",
+        "RESOLVED": "{{resource}} is no longer down {{threshold}}% or more"
+      },
+      "RESOURCE_RISE": {
+        "TRIGGERED": "{{resource}} rose {{value}}% (limit {{threshold}}%)",
+        "RESOLVED": "{{resource}} is no longer up {{threshold}}% or more"
+      },
+      "CRAFT_STALLED": {
+        "TRIGGERED": "Crafting {{value}} × {{resource}} made no progress for {{threshold}} min",
+        "RESOLVED": "Crafting {{value}} × {{resource}} is progressing again"
+      }
+    },
+    "minutes_one": "{{count}} min",
+    "minutes_other": "{{count}} min",
+    "withinWindow_one": "{{change}} within {{count}} min",
+    "withinWindow_other": "{{change}} within {{count}} min",
+    "thresholdMinutes": "Minutes without progress",
+    "thresholdChange": "Change in percent",
+    "windowLabel": "Compared with minutes ago"
   }
 }

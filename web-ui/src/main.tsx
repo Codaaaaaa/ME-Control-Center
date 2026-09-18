@@ -7,6 +7,7 @@ import './styles/app.css';
 import './styles/terminal.css';
 import './styles/crafting.css';
 import './styles/patterns.css';
+import './styles/insights.css';
 
 const root = document.getElementById('root');
 if (!root) {

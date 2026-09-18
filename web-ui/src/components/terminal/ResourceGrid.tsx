@@ -13,12 +13,14 @@ export function ResourceGrid({
   window: resources,
   tileSize,
   selectedId,
+  watchedIds,
   onSelect,
   onRangeChange,
 }: {
   window: ResourceWindow;
   tileSize: number;
   selectedId: string | null;
+  watchedIds: ReadonlySet<string>;
   onSelect: (id: string | null) => void;
   onRangeChange: (start: number, end: number) => void;
 }) {
@@ -88,6 +90,7 @@ export function ResourceGrid({
           assetVersion={resources.assetVersion ?? ''}
           size={tileSize}
           selected={resource?.id === selectedId}
+          watched={resource !== undefined && watchedIds.has(resource.id)}
           focusable={index === focusIndex}
           onSelect={() => {
             setFocusIndex(index);

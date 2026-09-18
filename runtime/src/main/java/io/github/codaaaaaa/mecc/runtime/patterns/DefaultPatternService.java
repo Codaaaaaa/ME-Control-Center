@@ -25,6 +25,7 @@ import io.github.codaaaaaa.mecc.core.patterns.PatternViews.ProviderList;
 import io.github.codaaaaaa.mecc.core.patterns.PatternViews.RecipeList;
 import io.github.codaaaaaa.mecc.core.patterns.PatternViews.RecipeView;
 import io.github.codaaaaaa.mecc.core.patterns.PatternViews.ValidationView;
+import io.github.codaaaaaa.mecc.core.patterns.ProviderSettings;
 import io.github.codaaaaaa.mecc.core.permissions.NetworkAccess;
 import io.github.codaaaaaa.mecc.core.permissions.NetworkCapability;
 import io.github.codaaaaaa.mecc.core.persistence.DataStore;
@@ -59,6 +60,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -292,24 +294,60 @@ public final class DefaultPatternService implements PatternService {
             return CompletableFuture.failedFuture(MeccException.validation("name",
                     "The name must be at most " + PatternDraft.MAX_NAME_LENGTH + " characters"));
         }
+        return changeProvider(session, networkId, providerId, "patterns.rename",
+                gridKey -> patterns.rename(gridKey, providerId, stripped), Map.of("name", stripped));
+    }
+
+    @Override
+    public CompletionStage<Void> configureProvider(Session session, UUID networkId, String providerId,
+                                                   ProviderSettings settings) {
+        if (settings == null || settings.isEmpty()) {
+            return CompletableFuture.failedFuture(MeccException.validation("settings", "Nothing to change"));
+        }
+        if (settings.lockMode() != null && !ProviderSettings.LOCK_MODES.contains(settings.lockMode())) {
+            return CompletableFuture.failedFuture(MeccException.validation("lockMode",
+                    "lockMode must be one of " + ProviderSettings.LOCK_MODES));
+        }
+        Map<String, String> parameters = new LinkedHashMap<>();
+        if (settings.priority() != null) {
+            parameters.put("priority", settings.priority().toString());
+        }
+        if (settings.blocking() != null) {
+            parameters.put("blocking", settings.blocking().toString());
+        }
+        if (settings.lockMode() != null) {
+            parameters.put("lockMode", settings.lockMode());
+        }
+        if (settings.visibleInTerminal() != null) {
+            parameters.put("visibleInTerminal", settings.visibleInTerminal().toString());
+        }
+        return changeProvider(session, networkId, providerId, "patterns.configure",
+                gridKey -> patterns.configure(gridKey, providerId, settings), parameters);
+    }
+
+    /** Applies a provider change on the server thread, then audits it ({@code PROVIDER_SETTING_CHANGE}). */
+    private CompletionStage<Void> changeProvider(Session session, UUID networkId, String providerId, String operation,
+                                                 Function<String, PatternPlatform.ProviderChange> change,
+                                                 Map<String, String> parameters) {
         return guard.access(session, networkId).thenCompose(access -> {
             NetworkGuard.require(access, NetworkCapability.PROVIDER_SETTINGS);
             String gridKey = guard.gridKey(networkId);
-            return gateway.call("patterns.rename", () -> patterns.rename(gridKey, providerId, stripped), SERVER_CALL_TIMEOUT)
+            return gateway.call(operation, () -> change.apply(gridKey), SERVER_CALL_TIMEOUT)
                     .thenCompose(outcome -> {
-                        if (outcome == PatternPlatform.RenameOutcome.NOT_FOUND) {
+                        if (outcome == PatternPlatform.ProviderChange.NOT_FOUND) {
                             throw new MeccException(ErrorCode.PROVIDER_NOT_FOUND,
                                     "No such pattern provider on this network right now");
                         }
-                        if (outcome == PatternPlatform.RenameOutcome.NOT_RENAMABLE) {
-                            throw new MeccException(ErrorCode.PROVIDER_NOT_RENAMABLE, "This pattern container cannot be renamed");
+                        if (outcome == PatternPlatform.ProviderChange.NOT_SUPPORTED) {
+                            throw new MeccException(ErrorCode.PROVIDER_NOT_RENAMABLE,
+                                    "This pattern container does not support this change");
                         }
                         providers.invalidate(networkId);
                         return store.write(repos -> {
                             repos.audit().append(new AuditEvent(clock.instant(), uuid(session), session.device().id(),
                                     networkId, AuditAction.PROVIDER_SETTING_CHANGE, "provider:" + providerId,
                                     AuditResult.SUCCESS, access.requiresOverride(NetworkCapability.PROVIDER_SETTINGS),
-                                    Map.of("name", stripped)));
+                                    parameters));
                             return (Void) null;
                         });
                     });

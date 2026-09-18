@@ -18,7 +18,8 @@ public enum NetworkCapability {
     SHARE_NETWORK(NetworkRole.OWNER),
     MANAGE_MEMBERS(NetworkRole.OWNER),
     RENAME_NETWORK(NetworkRole.OWNER),
-    DELETE_NETWORK(NetworkRole.OWNER);
+    DELETE_NETWORK(NetworkRole.OWNER),
+    VIEW_AUDIT_LOG(NetworkRole.OWNER);
 
     private final NetworkRole minimumRole;
 

@@ -313,6 +313,10 @@ public final class DefaultNetworkService implements NetworkService {
             if (previous.isEmpty() || !repos.networks().removeMember(networkId, playerUuid)) {
                 throw new MeccException(ErrorCode.PLAYER_NOT_FOUND, "That player is not a member of this network");
             }
+            // Their watchlist on this network is no longer theirs to see; stop sampling it.
+            repos.watchlist().deleteAll(playerUuid, networkId);
+            repos.alerts().deleteRules(playerUuid, networkId);
+            repos.savedOrders().deleteAll(playerUuid, networkId);
             boolean override = !self && loaded.access().requiresOverride(NetworkCapability.MANAGE_MEMBERS);
             audit(repos, session, networkId, AuditAction.NETWORK_MEMBER_REMOVE, playerUuid.toString(), override,
                     Map.of("role", previous.get().name(), "self", Boolean.toString(self)));

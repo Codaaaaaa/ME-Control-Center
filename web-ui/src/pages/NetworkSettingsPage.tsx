@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router';
 import { can, ROLES, type Member, type NetworkDetail, type Role } from '../api/networks';
 import { useDeleteNetwork, useMe, useMemberMutations, useMembers, useNetwork, useRenameNetwork } from '../api/queries';
+import { AuditLog } from '../components/AuditLog';
 import { Badge, Card } from '../components/Card';
 import { ConfirmButton } from '../components/ConfirmButton';
 import { shortDimension } from '../components/network/ClaimNetworks';
@@ -36,6 +37,11 @@ export function NetworkSettingsPage() {
           <GeneralCard detail={detail.data} />
           <AnchorsCard detail={detail.data} />
           <MembersCard detail={detail.data} />
+          {can(detail.data, 'VIEW_AUDIT_LOG') ? (
+            <Card className="card-wide" title={t('audit.title')}>
+              <AuditLog networkId={detail.data.network.id} />
+            </Card>
+          ) : null}
           <DangerCard detail={detail.data} />
         </div>
       )}

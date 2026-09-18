@@ -1,7 +1,9 @@
 package io.github.codaaaaaa.mecc.forge.ae2;
 
 import appeng.api.config.Actionable;
+import appeng.api.config.LockCraftingMode;
 import appeng.api.config.Settings;
+import appeng.api.config.YesNo;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.crafting.PatternDetailsHelper;
 import appeng.api.implementations.blockentities.PatternContainerGroup;
@@ -31,6 +33,7 @@ import io.github.codaaaaaa.mecc.core.patterns.PatternDefinition;
 import io.github.codaaaaaa.mecc.core.patterns.PatternIssue;
 import io.github.codaaaaaa.mecc.core.patterns.PatternStack;
 import io.github.codaaaaaa.mecc.core.patterns.PatternType;
+import io.github.codaaaaaa.mecc.core.patterns.ProviderSettings;
 import io.github.codaaaaaa.mecc.core.resources.ResourceId;
 import io.github.codaaaaaa.mecc.core.resources.ResourceText;
 import io.github.codaaaaaa.mecc.core.users.PlayerProfile;
@@ -264,13 +267,42 @@ public final class Ae2PatternPlatform implements PatternPlatform {
 
     @Override
     @ServerThreadOnly
-    public RenameOutcome rename(String gridKey, String providerId, String name) {
+    public ProviderChange rename(String gridKey, String providerId, String name) {
         Ae2Support.requireServerThread(server, "PatternPlatform.rename()");
         PatternContainer container = findProvider(Ae2Support.grid(gridKey), providerId).map(Map.Entry::getKey).orElse(null);
         if (container == null) {
-            return RenameOutcome.NOT_FOUND;
+            return ProviderChange.NOT_FOUND;
         }
-        return PatternContainers.rename(container, name) ? RenameOutcome.RENAMED : RenameOutcome.NOT_RENAMABLE;
+        return PatternContainers.rename(container, name) ? ProviderChange.CHANGED : ProviderChange.NOT_SUPPORTED;
+    }
+
+    @Override
+    @ServerThreadOnly
+    public ProviderChange configure(String gridKey, String providerId, ProviderSettings settings) {
+        Ae2Support.requireServerThread(server, "PatternPlatform.configure()");
+        PatternContainer container = findProvider(Ae2Support.grid(gridKey), providerId).map(Map.Entry::getKey).orElse(null);
+        if (container == null) {
+            return ProviderChange.NOT_FOUND;
+        }
+        if (!(container instanceof PatternProviderLogicHost host)) {
+            return ProviderChange.NOT_SUPPORTED;
+        }
+        // The same calls the provider's screen makes; the config manager saves and re-publishes the patterns.
+        PatternProviderLogic logic = host.getLogic();
+        if (settings.priority() != null) {
+            logic.setPriority(settings.priority());
+        }
+        if (settings.blocking() != null) {
+            logic.getConfigManager().putSetting(Settings.BLOCKING_MODE, settings.blocking() ? YesNo.YES : YesNo.NO);
+        }
+        if (settings.lockMode() != null) {
+            logic.getConfigManager().putSetting(Settings.LOCK_CRAFTING_MODE, LockCraftingMode.valueOf(settings.lockMode()));
+        }
+        if (settings.visibleInTerminal() != null) {
+            logic.getConfigManager().putSetting(Settings.PATTERN_ACCESS_TERMINAL,
+                    settings.visibleInTerminal() ? YesNo.YES : YesNo.NO);
+        }
+        return ProviderChange.CHANGED;
     }
 
     // --- building patterns --------------------------------------------------------------------------

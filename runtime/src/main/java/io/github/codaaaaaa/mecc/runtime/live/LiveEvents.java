@@ -195,6 +195,15 @@ public final class LiveEvents implements LiveEventService, CraftingTracker.Liste
         broadcast(networkId, event);
     }
 
+    /** Sends an event to every connection of one player, whatever they subscribed to (e.g. their alerts). */
+    public void playerEvent(UUID player, LiveEvent event) {
+        for (LiveConnection connection : connections) {
+            if (connection.viewer().equals(player)) {
+                connection.send(event);
+            }
+        }
+    }
+
     private void broadcast(UUID networkId, LiveEvent event) {
         for (LiveConnection connection : connections) {
             if (connection.subscriptions.containsKey(networkId)) {

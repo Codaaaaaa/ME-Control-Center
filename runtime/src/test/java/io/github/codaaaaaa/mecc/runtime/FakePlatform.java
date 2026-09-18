@@ -13,6 +13,7 @@ import io.github.codaaaaaa.mecc.core.patterns.PatternDefinition;
 import io.github.codaaaaaa.mecc.core.patterns.PatternIssue;
 import io.github.codaaaaaa.mecc.core.patterns.PatternStack;
 import io.github.codaaaaaa.mecc.core.patterns.PatternType;
+import io.github.codaaaaaa.mecc.core.patterns.ProviderSettings;
 import io.github.codaaaaaa.mecc.core.resources.ResourceDescriptor;
 import io.github.codaaaaaa.mecc.core.resources.ResourceId;
 import io.github.codaaaaaa.mecc.core.resources.ResourceIndex;
@@ -79,6 +80,8 @@ public final class FakePlatform implements MeccPlatform, AutoCloseable {
     public volatile int tagsVersion = 1;
     /** How long the last server-thread storage capture took. */
     public volatile Duration lastCaptureDuration = Duration.ZERO;
+    /** Storage captures taken on the server thread. */
+    public final java.util.concurrent.atomic.AtomicInteger storageCaptures = new java.util.concurrent.atomic.AtomicInteger();
 
     /**
      * @param crafting amount being crafted, or {@link ResourceIndex#NOT_CRAFTING}
@@ -211,6 +214,7 @@ public final class FakePlatform implements MeccPlatform, AutoCloseable {
                     throw new MeccException(ErrorCode.NETWORK_OFFLINE, "The ME network is not loaded right now");
                 }
                 List<StoredResource> copy = List.copyOf(storage);
+                storageCaptures.incrementAndGet();
                 lastCaptureDuration = Duration.ofNanos(System.nanoTime() - start);
                 return new FakeCapture(copy);
             }
@@ -494,6 +498,10 @@ public final class FakePlatform implements MeccPlatform, AutoCloseable {
         public volatile boolean online = true;
         /** The next deployment into this provider is refused after the Blank Pattern was taken. */
         public volatile boolean refuseNext;
+        public volatile int priority;
+        public volatile boolean blocking;
+        public volatile String lockMode = "NONE";
+        public volatile boolean visible = true;
 
         FakeProvider(String id, String name, int slots) {
             this.id = id;
@@ -565,25 +573,51 @@ public final class FakePlatform implements MeccPlatform, AutoCloseable {
                 states.add(new ProviderState(provider.id, ResourceText.literal(provider.name),
                         provider.machine == null ? kind : provider.machine, kind, provider.machine, null, provider.renamable,
                         new BlockLocation("minecraft:overworld", 1, 2, 3), provider.online, provider.slots.length,
-                        provider.machine == null ? 0 : null, provider.machine == null ? false : null,
-                        provider.machine == null ? "NONE" : null, true, stored));
+                        provider.machine == null ? provider.priority : null, provider.machine == null ? provider.blocking : null,
+                        provider.machine == null ? provider.lockMode : null, provider.visible, stored));
             }
             return new ProviderCapture(Instant.now(), states, blankPatterns.get());
         }
 
         @Override
-        public RenameOutcome rename(String gridKey, String providerId, String name) {
+        public ProviderChange rename(String gridKey, String providerId, String name) {
             requireServerThread();
             crafting.requireGrid(gridKey);
             FakeProvider provider = providers.stream().filter(candidate -> candidate.id.equals(providerId)).findFirst().orElse(null);
             if (provider == null) {
-                return RenameOutcome.NOT_FOUND;
+                return ProviderChange.NOT_FOUND;
             }
             if (!provider.renamable) {
-                return RenameOutcome.NOT_RENAMABLE;
+                return ProviderChange.NOT_SUPPORTED;
             }
             provider.name = name.isEmpty() ? "Pattern Provider" : name;
-            return RenameOutcome.RENAMED;
+            return ProviderChange.CHANGED;
+        }
+
+        @Override
+        public ProviderChange configure(String gridKey, String providerId, ProviderSettings settings) {
+            requireServerThread();
+            crafting.requireGrid(gridKey);
+            FakeProvider provider = providers.stream().filter(candidate -> candidate.id.equals(providerId)).findFirst().orElse(null);
+            if (provider == null) {
+                return ProviderChange.NOT_FOUND;
+            }
+            if (provider.machine != null) {
+                return ProviderChange.NOT_SUPPORTED;
+            }
+            if (settings.priority() != null) {
+                provider.priority = settings.priority();
+            }
+            if (settings.blocking() != null) {
+                provider.blocking = settings.blocking();
+            }
+            if (settings.lockMode() != null) {
+                provider.lockMode = settings.lockMode();
+            }
+            if (settings.visibleInTerminal() != null) {
+                provider.visible = settings.visibleInTerminal();
+            }
+            return ProviderChange.CHANGED;
         }
 
         @Override

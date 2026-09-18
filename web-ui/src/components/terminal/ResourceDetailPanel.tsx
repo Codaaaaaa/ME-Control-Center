@@ -7,6 +7,7 @@ import { formatRelative } from '../../lib/format';
 import { Badge, Field, Fields } from '../Card';
 import { CraftDialog } from '../crafting/CraftDialog';
 import { useCapability } from '../crafting/CraftingBits';
+import { ResourceWatch } from '../insights/WatchlistPanel';
 import { ErrorNotice, LoadingNotice } from '../StateNotice';
 import { ResourceIcon } from './ResourceIcon';
 import { ResourceName } from './ResourceName';
@@ -104,6 +105,8 @@ export function ResourceDetailPanel({
               )}
             </div>
           ) : null}
+
+          <ResourceWatch networkId={networkId} resourceId={detail.data.resource.id} />
         </>
       )}
       {crafting ? (

@@ -198,6 +198,14 @@ public final class CraftingViews {
     public record OrderPage(List<OrderView> orders, String nextCursor, String assetVersion) {
     }
 
+    /** A saved crafting preset (spec section 24). {@code amount} is raw, like order amounts. */
+    public record SavedOrderView(UUID id, UUID networkId, String name, ResourceLabel target, long amount, String cpuId,
+                                 String notes, Instant createdAt, Instant updatedAt) {
+    }
+
+    public record SavedOrderList(List<SavedOrderView> orders, int limit, String assetVersion) {
+    }
+
     /** @param actor player who caused the event, or {@code null} */
     public record OrderEventView(Instant at, OrderEventType type, UserView actor, Map<String, String> details) {
     }

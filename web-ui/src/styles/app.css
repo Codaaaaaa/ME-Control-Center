@@ -548,3 +548,61 @@
 .update-notice strong {
   color: var(--accent-strong);
 }
+
+/* Audit log and server administration. */
+.audit-parameters {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.config-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px 24px;
+}
+
+.config-section-title {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.config-sections code {
+  overflow-wrap: anywhere;
+}
+
+/* Alerts (spec section 23) and saved orders (section 24). */
+.alert-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.alert-form-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.alert-resource {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--touch-target);
+}
+
+.preset-form {
+  display: grid;
+  gap: 12px;
+}
+
+.preset-form textarea {
+  resize: vertical;
+}
+
+.saved-notes {
+  white-space: pre-wrap;
+}

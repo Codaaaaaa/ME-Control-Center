@@ -2,15 +2,17 @@ package io.github.codaaaaaa.mecc.runtime.config;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.dataformat.toml.TomlMapper;
+import io.github.codaaaaaa.mecc.core.config.AlertsConfig;
+import io.github.codaaaaaa.mecc.core.config.AnalyticsConfig;
 import io.github.codaaaaaa.mecc.core.config.AssetsConfig;
 import io.github.codaaaaaa.mecc.core.config.ConfigValidationException;
 import io.github.codaaaaaa.mecc.core.config.CraftingConfig;
-import io.github.codaaaaaa.mecc.core.config.PatternsConfig;
+import io.github.codaaaaaa.mecc.core.config.MeccConfig;
 import io.github.codaaaaaa.mecc.core.config.NetworksConfig;
+import io.github.codaaaaaa.mecc.core.config.PatternsConfig;
 import io.github.codaaaaaa.mecc.core.config.ResourcesConfig;
 import io.github.codaaaaaa.mecc.core.config.SecurityConfig;
 import io.github.codaaaaaa.mecc.core.config.WebConfig;
-import io.github.codaaaaaa.mecc.core.config.MeccConfig;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -41,12 +43,17 @@ public final class ConfigLoader {
     private static final Map<String, Set<String>> KNOWN_KEYS = Map.of(
             "web", Set.of("enabled", "host", "port", "max_threads", "public_base_url"),
             "security", Set.of("pairing_key_ttl_seconds", "trusted_proxies", "admin_override", "admin_op_level",
-                    "require_https_cookie", "allowed_origins"),
+                    "require_https_cookie", "allowed_origins", "rate_limit_requests_per_minute",
+                    "rate_limit_writes_per_minute"),
             "networks", Set.of("discovery_interval_seconds"),
             "resources", Set.of("snapshot_max_age_seconds"),
             "assets", Set.of("download_vanilla_assets"),
             "crafting", Set.of("max_craft_amount", "calculation_timeout_seconds"),
-            "patterns", Set.of("max_pattern_inputs", "max_pattern_outputs", "max_drafts_per_user"));
+            "patterns", Set.of("max_pattern_inputs", "max_pattern_outputs", "max_drafts_per_user"),
+            "analytics", Set.of("enabled", "sample_interval_seconds", "raw_retention_hours", "one_minute_retention_days",
+                    "five_minute_retention_days", "one_hour_retention_days", "max_watchlist_entries_per_user"),
+            "alerts", Set.of("enabled", "check_interval_seconds", "webhooks_enabled", "allow_private_webhook_targets",
+                    "max_rules_per_user"));
 
     static final String DEFAULT_FILE = """
             # ME Control Center configuration.
@@ -93,6 +100,12 @@ public final class ConfigLoader {
             # The origin of public_base_url and the address the browser used are always allowed.
             allowed_origins = []
 
+            # Rate limits. Every API request and WebSocket connection counts against the client's address
+            # (behind a reverse proxy: the forwarded address, see trusted_proxies); icons are exempt.
+            # Changes (crafting, patterns, sharing, ...) additionally count against the player.
+            rate_limit_requests_per_minute = 1200
+            rate_limit_writes_per_minute = 120
+
             [networks]
             # How often loaded ME networks are discovered and their status refreshed, in seconds (2-300).
             discovery_interval_seconds = 10
@@ -123,6 +136,34 @@ public final class ConfigLoader {
 
             # Pattern drafts one player may keep in Pattern Studio (1-10000).
             max_drafts_per_user = 200
+
+            [analytics]
+            # Record the history of watched resources. One storage snapshot per watched network and interval,
+            # however many players watch how many resources.
+            enabled = true
+            sample_interval_seconds = 15
+
+            # How long each resolution is kept. Charts pick the resolution that fits the range shown.
+            raw_retention_hours = 24
+            one_minute_retention_days = 7
+            five_minute_retention_days = 90
+            one_hour_retention_days = 730
+
+            # Watchlist entries one player may keep across all networks (1-1000).
+            max_watchlist_entries_per_user = 100
+
+            [alerts]
+            # Players' alert rules: low or high stock, network offline, low energy, all CPUs busy, crafts done/failed.
+            enabled = true
+            # How often rules are checked, in seconds (5-300). Uses the same storage snapshots as the terminal.
+            check_interval_seconds = 15
+            # Let players send their alerts to a Discord webhook or a generic JSON webhook.
+            webhooks_enabled = true
+            # Webhooks may not reach loopback or private (LAN) addresses unless this is true. Keep it false on
+            # public servers: otherwise any player could make the server send requests into its own network.
+            allow_private_webhook_targets = false
+            # Alert rules one player may keep across all networks (1-1000).
+            max_rules_per_user = 50
             """;
 
     private final Path file;
@@ -163,6 +204,8 @@ public final class ConfigLoader {
         Section assets = section(root, "assets", problems);
         Section crafting = section(root, "crafting", problems);
         Section patterns = section(root, "patterns", problems);
+        Section analytics = section(root, "analytics", problems);
+        Section alerts = section(root, "alerts", problems);
 
         WebConfig webDefaults = WebConfig.defaults();
         boolean enabled = web.bool("enabled", webDefaults.enabled());
@@ -193,7 +236,9 @@ public final class ConfigLoader {
                 security.bool("admin_override", securityDefaults.adminOverride()),
                 security.integer("admin_op_level", securityDefaults.adminOpLevel()),
                 security.bool("require_https_cookie", securityDefaults.requireHttpsCookie()),
-                security.stringList("allowed_origins", securityDefaults.allowedOrigins()));
+                security.stringList("allowed_origins", securityDefaults.allowedOrigins()),
+                security.integer("rate_limit_requests_per_minute", securityDefaults.rateLimitRequestsPerMinute()),
+                security.integer("rate_limit_writes_per_minute", securityDefaults.rateLimitWritesPerMinute()));
 
         NetworksConfig networksConfig = new NetworksConfig(
                 networks.integer("discovery_interval_seconds", NetworksConfig.defaults().discoveryIntervalSeconds()));
@@ -214,8 +259,27 @@ public final class ConfigLoader {
                 patterns.integer("max_pattern_outputs", patternsDefaults.maxPatternOutputs()),
                 patterns.integer("max_drafts_per_user", patternsDefaults.maxDraftsPerUser()));
 
+        AnalyticsConfig analyticsDefaults = AnalyticsConfig.defaults();
+        AnalyticsConfig analyticsConfig = new AnalyticsConfig(
+                analytics.bool("enabled", analyticsDefaults.enabled()),
+                analytics.integer("sample_interval_seconds", analyticsDefaults.sampleIntervalSeconds()),
+                analytics.integer("raw_retention_hours", analyticsDefaults.rawRetentionHours()),
+                analytics.integer("one_minute_retention_days", analyticsDefaults.oneMinuteRetentionDays()),
+                analytics.integer("five_minute_retention_days", analyticsDefaults.fiveMinuteRetentionDays()),
+                analytics.integer("one_hour_retention_days", analyticsDefaults.oneHourRetentionDays()),
+                analytics.integer("max_watchlist_entries_per_user", analyticsDefaults.maxWatchlistEntriesPerUser()));
+
+        AlertsConfig alertsDefaults = AlertsConfig.defaults();
+        AlertsConfig alertsConfig = new AlertsConfig(
+                alerts.bool("enabled", alertsDefaults.enabled()),
+                alerts.integer("check_interval_seconds", alertsDefaults.checkIntervalSeconds()),
+                alerts.bool("webhooks_enabled", alertsDefaults.webhooksEnabled()),
+                alerts.bool("allow_private_webhook_targets", alertsDefaults.allowPrivateWebhookTargets()),
+                alerts.integer("max_rules_per_user", alertsDefaults.maxRulesPerUser()));
+
         MeccConfig config = new MeccConfig(new WebConfig(enabled, host, port, maxThreads, publicBaseUrl),
-                securityConfig, networksConfig, resourcesConfig, assetsConfig, craftingConfig, patternsConfig);
+                securityConfig, networksConfig, resourcesConfig, assetsConfig, craftingConfig, patternsConfig,
+                analyticsConfig, alertsConfig);
         if (problems.isEmpty()) {
             problems.addAll(config.validate());
         }

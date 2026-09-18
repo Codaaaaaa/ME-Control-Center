@@ -3,6 +3,8 @@ package io.github.codaaaaaa.mecc.runtime.assets;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.codaaaaaa.mecc.assets.ContentPackLayout;
+import io.github.codaaaaaa.mecc.core.admin.AdminViews.ContentPackView;
+import io.github.codaaaaaa.mecc.core.admin.AdminViews.ContentPackView.PackStatus;
 import io.github.codaaaaaa.mecc.core.assets.AssetPack;
 import java.io.IOException;
 import java.nio.file.FileSystem;
@@ -36,6 +38,7 @@ public final class ContentPacks {
     private final String minecraftVersion;
     private final Map<String, String> serverMods;
     private final ObjectMapper json = new ObjectMapper();
+    private volatile List<ContentPackView> status = List.of();
 
     /**
      * @param serverMods mod id to version on this server; empty if the platform cannot tell, which skips the
@@ -47,24 +50,39 @@ public final class ContentPacks {
         this.serverMods = Map.copyOf(serverMods);
     }
 
+    /** What the last scan found, for the admin page: every pack and whether it matches this server. */
+    public List<ContentPackView> status() {
+        return status;
+    }
+
     /** Opens every valid pack, in name order. Opened archives are added to {@code archives} for closing. */
     List<AssetPack> packs(List<FileSystem> archives) {
         List<AssetPack> packs = new ArrayList<>();
+        List<ContentPackView> found = new ArrayList<>();
+        try {
+            scan(archives, packs, found);
+        } finally {
+            status = List.copyOf(found);
+        }
+        return packs;
+    }
+
+    private void scan(List<FileSystem> archives, List<AssetPack> packs, List<ContentPackView> found) {
         if (!Files.isDirectory(directory)) {
-            return packs;
+            return;
         }
         try (Stream<Path> entries = Files.list(directory)) {
             for (Path entry : entries.sorted().toList()) {
                 String name = entry.getFileName().toString();
                 try {
                     if (Files.isDirectory(entry)) {
-                        open(name, entry, Long.toString(Files.getLastModifiedTime(entry).toMillis())).ifPresent(packs::add);
+                        open(name, entry, Long.toString(Files.getLastModifiedTime(entry).toMillis()), found).ifPresent(packs::add);
                     } else if (name.endsWith(".zip")) {
                         FileSystem archive = FileSystems.newFileSystem(entry);
                         Optional<AssetPack> pack;
                         try {
                             pack = open(name, archive.getPath("/"),
-                                    Files.size(entry) + "-" + Files.getLastModifiedTime(entry).toMillis());
+                                    Files.size(entry) + "-" + Files.getLastModifiedTime(entry).toMillis(), found);
                         } catch (IOException | RuntimeException e) {
                             archive.close();
                             throw e;
@@ -78,15 +96,20 @@ public final class ContentPacks {
                     }
                 } catch (IOException | RuntimeException e) {
                     LOGGER.warn("Skipping ME Control Center content pack {}: {}", entry, e.toString());
+                    found.add(skipped(name, "unreadable: " + e.getMessage()));
                 }
             }
         } catch (IOException e) {
             LOGGER.warn("Could not list {}: {}", directory, e.toString());
         }
-        return packs;
     }
 
-    private Optional<AssetPack> open(String name, Path root, String version) throws IOException {
+    private static ContentPackView skipped(String name, String problem) {
+        return new ContentPackView(name, null, null, null, null, List.of(), PackStatus.SKIPPED, List.of(problem));
+    }
+
+    private Optional<AssetPack> open(String name, Path root, String version, List<ContentPackView> found)
+            throws IOException {
         Path manifestFile = root.resolve(ContentPackLayout.MANIFEST);
         JsonNode manifest = Files.isRegularFile(manifestFile) ? json.readTree(Files.readAllBytes(manifestFile)) : null;
         String problem = manifest == null || !manifest.isObject()
@@ -96,13 +119,14 @@ public final class ContentPacks {
                         : null;
         if (problem != null) {
             LOGGER.warn("Skipping {} in {}: {}", name, directory, problem);
+            found.add(skipped(name, problem));
             return Optional.empty();
         }
-        report(name, manifest);
+        found.add(report(name, manifest));
         return Optional.of(new AssetPack("contentpack/" + name, root, version));
     }
 
-    private void report(String name, JsonNode manifest) {
+    private ContentPackView report(String name, JsonNode manifest) {
         String packMinecraft = manifest.path("minecraft").asText("?");
         String summary = "%s (%s icons, languages %s, made %s)".formatted(name,
                 manifest.path("icons").path("exported").asText("?"), manifest.path("locales"), manifest.path("createdAt").asText("?"));
@@ -143,6 +167,12 @@ public final class ContentPacks {
                     + "they still apply, but re-exporting from the current modpack is recommended: {}",
                     summary, String.join("; ", problems));
         }
+        List<String> locales = new ArrayList<>();
+        manifest.path("locales").forEach(locale -> locales.add(locale.asText()));
+        JsonNode icons = manifest.path("icons").path("exported");
+        return new ContentPackView(name, manifest.path("fingerprint").asText(null), manifest.path("createdAt").asText(null),
+                packMinecraft, icons.isNumber() ? icons.asInt() : null, locales,
+                problems.isEmpty() ? PackStatus.MATCH : PackStatus.MISMATCH, problems);
     }
 
     private static String list(List<String> items) {

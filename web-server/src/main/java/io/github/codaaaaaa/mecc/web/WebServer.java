@@ -7,11 +7,13 @@ import io.github.codaaaaaa.mecc.core.live.LiveEventService;
 import io.github.codaaaaaa.mecc.web.api.ApiHandler;
 import io.github.codaaaaaa.mecc.web.api.ApiRoutes;
 import io.github.codaaaaaa.mecc.web.api.ApiSecurity;
+import io.github.codaaaaaa.mecc.web.api.RequestLimits;
 import io.github.codaaaaaa.mecc.web.api.SessionResolver;
 import io.github.codaaaaaa.mecc.web.json.JsonCodec;
 import io.github.codaaaaaa.mecc.web.staticfiles.StaticAssetHandler;
 import io.github.codaaaaaa.mecc.web.staticfiles.StaticAssets;
 import io.github.codaaaaaa.mecc.web.websocket.LiveSocketHandler;
+import java.time.Clock;
 import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -106,13 +108,15 @@ public final class WebServer {
         jetty.setErrorHandler(errorHandler);
 
         JsonCodec json = new JsonCodec();
+        RequestLimits limits = new RequestLimits(security, Clock.systemUTC());
         Handler application = new Handler.Sequence(
-                new ApiHandler(routes, json, security, sessions),
+                new ApiHandler(routes, json, security, sessions, limits),
                 new StaticAssetHandler(assets));
         ScheduledExecutorService scheduler = null;
         if (live != null) {
             scheduler = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("ME Control Center-Live"));
-            WebSocketUpgradeHandler upgrades = LiveSocketHandler.create(jetty, live, sessions, security, json, scheduler);
+            WebSocketUpgradeHandler upgrades = LiveSocketHandler.create(jetty, live, sessions, security, limits, json,
+                    scheduler);
             upgrades.setHandler(application);
             application = upgrades;
         }

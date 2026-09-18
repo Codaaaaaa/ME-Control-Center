@@ -13,6 +13,8 @@ import java.util.List;
  * @param adminOpLevel         minimum operator permission level that counts as server admin
  * @param requireHttpsCookie   always mark the device cookie {@code Secure}
  * @param allowedOrigins       extra browser origins allowed to send state-changing requests
+ * @param rateLimitRequestsPerMinute API requests one client address may make per minute (burst of the same size)
+ * @param rateLimitWritesPerMinute   state-changing API requests one player may make per minute
  */
 public record SecurityConfig(
         int pairingKeyTtlSeconds,
@@ -20,10 +22,14 @@ public record SecurityConfig(
         boolean adminOverride,
         int adminOpLevel,
         boolean requireHttpsCookie,
-        List<String> allowedOrigins) {
+        List<String> allowedOrigins,
+        int rateLimitRequestsPerMinute,
+        int rateLimitWritesPerMinute) {
 
     public static final int DEFAULT_PAIRING_KEY_TTL_SECONDS = 300;
     public static final int DEFAULT_ADMIN_OP_LEVEL = 4;
+    public static final int DEFAULT_REQUESTS_PER_MINUTE = 1200;
+    public static final int DEFAULT_WRITES_PER_MINUTE = 120;
 
     public SecurityConfig {
         trustedProxies = List.copyOf(trustedProxies);
@@ -31,7 +37,8 @@ public record SecurityConfig(
     }
 
     public static SecurityConfig defaults() {
-        return new SecurityConfig(DEFAULT_PAIRING_KEY_TTL_SECONDS, List.of(), true, DEFAULT_ADMIN_OP_LEVEL, false, List.of());
+        return new SecurityConfig(DEFAULT_PAIRING_KEY_TTL_SECONDS, List.of(), true, DEFAULT_ADMIN_OP_LEVEL, false, List.of(),
+                DEFAULT_REQUESTS_PER_MINUTE, DEFAULT_WRITES_PER_MINUTE);
     }
 
     public List<String> validate() {
@@ -51,6 +58,12 @@ public record SecurityConfig(
             if (WebConfig.originOf(origin) == null) {
                 problems.add("security.allowed_origins contains an invalid origin: " + origin);
             }
+        }
+        if (rateLimitRequestsPerMinute < 60 || rateLimitRequestsPerMinute > 100_000) {
+            problems.add("security.rate_limit_requests_per_minute must be between 60 and 100000, got " + rateLimitRequestsPerMinute);
+        }
+        if (rateLimitWritesPerMinute < 10 || rateLimitWritesPerMinute > 10_000) {
+            problems.add("security.rate_limit_writes_per_minute must be between 10 and 10000, got " + rateLimitWritesPerMinute);
         }
         return problems;
     }

@@ -4,8 +4,10 @@ import { ApiError, failureKind } from './api/client';
 import { queryKeys } from './api/queries';
 import { AuthGate } from './components/AuthGate';
 import { Shell } from './components/Shell';
+import { AlertsPage } from './pages/AlertsPage';
 import { CpusPage } from './pages/CpusPage';
 import { CraftingPage } from './pages/CraftingPage';
+import { InsightsPage } from './pages/InsightsPage';
 import { NetworkSettingsPage } from './pages/NetworkSettingsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { OverviewPage } from './pages/OverviewPage';
@@ -44,6 +46,8 @@ export function App() {
               <Route path="crafting" element={<CraftingPage />} />
               <Route path="cpus" element={<CpusPage />} />
               <Route path="patterns" element={<PatternsPage />} />
+              <Route path="insights" element={<InsightsPage />} />
+              <Route path="alerts" element={<AlertsPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="networks/:networkId" element={<NetworkSettingsPage />} />
               <Route path="*" element={<NotFoundPage />} />

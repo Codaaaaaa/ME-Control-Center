@@ -44,9 +44,11 @@ public interface CraftingService {
      * Submits a ready plan (spec section 9.3). The order is recorded before it is handed to the crafting
      * system; if the crafting system rejects it, the call fails and the order is kept as {@code FAILED}.
      *
-     * @param cpuId CPU to use, or {@code null} to let the crafting system choose
+     * @param cpuId  CPU to use, or {@code null} to let the crafting system choose
+     * @param source {@code MANUAL} or {@code SAVED_ORDER} (a preset the player ran, spec section 24)
      */
-    CompletionStage<OrderView> submit(Session session, UUID networkId, String planId, String cpuId, String locale);
+    CompletionStage<OrderView> submit(Session session, UUID networkId, String planId, String cpuId, OrderSource source,
+                                      String locale);
 
     /** Orders of the network, newest first. Requires {@code VIEW_NETWORK}. */
     CompletionStage<OrderPage> orders(Session session, UUID networkId, OrderFilter filter, int limit, String cursor,

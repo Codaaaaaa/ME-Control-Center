@@ -311,6 +311,44 @@ class PatternStudioTest {
     }
 
     @Test
+    void managersChangeProviderSettings() throws Exception {
+        Browser manager = member(alex, "MANAGER");
+        Browser operator = member(eve, "OPERATOR");
+        String path = "/api/v1/networks/" + networkId + "/providers/p-assembler";
+
+        assertEquals("PERMISSION_DENIED", errorCode(operator.patch(path, Map.of("priority", 5))));
+        assertEquals("VALIDATION_FAILED", errorCode(manager.patch(path, Map.of("lockMode", "SOMETIMES"))));
+        assertEquals("VALIDATION_FAILED", errorCode(manager.patch(path, Map.of())), "nothing to change");
+        assertEquals(204, manager.patch(path, Map.of("priority", 100, "blocking", true, "lockMode", "LOCK_UNTIL_RESULT",
+                "visibleInTerminal", false)).statusCode());
+        assertEquals(100, assembler.priority);
+        assertTrue(assembler.blocking);
+        assertEquals("LOCK_UNTIL_RESULT", assembler.lockMode);
+        assertFalse(assembler.visible);
+        assertEquals(204, manager.patch(path, Map.of("priority", -5)).statusCode());
+        assertEquals(-5, assembler.priority);
+        assertTrue(assembler.blocking, "fields left out stay as they are");
+
+        JsonNode listed = null;
+        for (JsonNode provider : json(manager.get("/api/v1/networks/" + networkId + "/providers")).path("providers")) {
+            if (provider.path("id").asText().equals("p-assembler")) {
+                listed = provider;
+            }
+        }
+        assertEquals(-5, listed.path("priority").asInt());
+        assertEquals("LOCK_UNTIL_RESULT", listed.path("lockMode").asText());
+
+        FakeProvider buffer = platform.patterns.addProvider("p-buffer", "ME Pattern Buffer", 36);
+        buffer.machine = FakePlatform.descriptor("item", "gtceu", "large_assembler");
+        assertEquals("PROVIDER_NOT_RENAMABLE", errorCode(manager.patch("/api/v1/networks/" + networkId
+                + "/providers/p-buffer", Map.of("priority", 1))), "pattern buffers have no such settings");
+
+        JsonNode log = json(owner.get("/api/v1/networks/" + networkId + "/audit")).path("entries");
+        assertEquals("PROVIDER_SETTING_CHANGE", log.get(0).path("action").asText());
+        assertEquals("-5", log.get(0).path("parameters").path("priority").asText());
+    }
+
+        @Test
     void machineRecipesFillProcessingPatterns() throws Exception {
         platform.recipes.list.add(new PatternRecipe("gtceu:assembler/hv_hatch", PatternType.PROCESSING,
                 List.of(List.of(FakePlatform.descriptor("item", "minecraft", "iron_ingot")),

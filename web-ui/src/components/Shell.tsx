@@ -1,6 +1,8 @@
 import { useTranslation } from 'react-i18next';
-import { NavLink, Outlet } from 'react-router';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router';
 import { useLogout, useMe } from '../api/queries';
+import { useAlertNotifications } from '../hooks/useAlertNotifications';
 import { useUpdateAvailable } from '../hooks/useUpdateAvailable';
 import { ConnectionIndicator } from './ConnectionIndicator';
 import { LocaleSelect } from './LocaleSelect';
@@ -11,6 +13,7 @@ export function Shell() {
   const logout = useLogout();
   const name = me.data?.user.playerName ?? '';
   const updateAvailable = useUpdateAvailable();
+  useAlertNotifications();
 
   return (
     <div className="shell">
@@ -45,30 +48,10 @@ export function Shell() {
       </header>
 
       <nav className="nav" aria-label={t('nav.label')}>
-        <NavLink to="/" end className="nav-item">
-          <OverviewIcon />
-          <span>{t('nav.overview')}</span>
-        </NavLink>
-        <NavLink to="/terminal" className="nav-item">
-          <TerminalIcon />
-          <span>{t('nav.terminal')}</span>
-        </NavLink>
-        <NavLink to="/crafting" className="nav-item">
-          <CraftingIcon />
-          <span>{t('nav.crafting')}</span>
-        </NavLink>
-        <NavLink to="/cpus" className="nav-item">
-          <CpuIcon />
-          <span>{t('nav.cpus')}</span>
-        </NavLink>
-        <NavLink to="/patterns" className="nav-item">
-          <PatternIcon />
-          <span>{t('nav.patterns')}</span>
-        </NavLink>
-        <NavLink to="/settings" className="nav-item">
-          <SettingsIcon />
-          <span>{t('nav.settings')}</span>
-        </NavLink>
+        {NAV.map((item) => (
+          <NavItem key={item.to} item={item} className={item.primary ? 'nav-item' : 'nav-item nav-secondary'} />
+        ))}
+        <MoreMenu />
       </nav>
 
       <main className="content">
@@ -86,6 +69,79 @@ export function Shell() {
         <Outlet />
       </main>
     </div>
+  );
+}
+
+interface NavEntry {
+  to: string;
+  label: string;
+  icon: ReactNode;
+  /** Shown in the phone's bottom bar; the others move into "More" there (spec section 5). */
+  primary: boolean;
+}
+
+const NAV: NavEntry[] = [
+  { to: '/', label: 'nav.overview', icon: <OverviewIcon />, primary: true },
+  { to: '/terminal', label: 'nav.terminal', icon: <TerminalIcon />, primary: true },
+  { to: '/crafting', label: 'nav.crafting', icon: <CraftingIcon />, primary: true },
+  { to: '/cpus', label: 'nav.cpus', icon: <CpuIcon />, primary: false },
+  { to: '/patterns', label: 'nav.patterns', icon: <PatternIcon />, primary: false },
+  { to: '/insights', label: 'nav.insights', icon: <InsightsIcon />, primary: true },
+  { to: '/alerts', label: 'nav.alerts', icon: <AlertsIcon />, primary: false },
+  { to: '/settings', label: 'nav.settings', icon: <SettingsIcon />, primary: false },
+];
+
+function NavItem({ item, className }: { item: NavEntry; className: string }) {
+  const { t } = useTranslation();
+  return (
+    <NavLink to={item.to} end={item.to === '/'} className={className}>
+      {item.icon}
+      <span>{t(item.label)}</span>
+    </NavLink>
+  );
+}
+
+/** Phones only: the secondary sections, closed again by navigating or tapping elsewhere. */
+function MoreMenu() {
+  const { t } = useTranslation();
+  const menu = useRef<HTMLDetailsElement>(null);
+  const { pathname } = useLocation();
+  const secondary = NAV.filter((item) => !item.primary);
+  const active = secondary.some((item) => pathname.startsWith(item.to));
+
+  useEffect(() => {
+    if (menu.current) menu.current.open = false;
+  }, [pathname]);
+  useEffect(() => {
+    const close = (event: PointerEvent) => {
+      if (menu.current && !menu.current.contains(event.target as Node)) menu.current.open = false;
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, []);
+
+  return (
+    <details className="nav-more" ref={menu}>
+      <summary className={active ? 'nav-item active' : 'nav-item'}>
+        <MoreIcon />
+        <span>{t('nav.more')}</span>
+      </summary>
+      <div className="nav-more-menu">
+        {secondary.map((item) => (
+          <NavItem key={item.to} item={item} className="nav-item" />
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function MoreIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <circle cx="5" cy="12" r="1.8" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+      <circle cx="19" cy="12" r="1.8" fill="currentColor" />
+    </svg>
   );
 }
 
@@ -147,6 +203,36 @@ function PatternIcon() {
         fill="none"
         stroke="currentColor"
         strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function AlertsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <path
+        d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16zM10 20.5a2 2 0 0 0 4 0"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function InsightsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <path
+        d="M4 4v16h16M7 15l4-5 3 3 5-7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
         strokeLinejoin="round"
       />
     </svg>

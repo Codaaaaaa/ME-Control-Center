@@ -10,7 +10,10 @@
     "terminal": "资源终端",
     "crafting": "合成中心",
     "cpus": "合成 CPU",
-    "patterns": "样板中心"
+    "patterns": "样板中心",
+    "insights": "资源观测",
+    "more": "更多",
+    "alerts": "监控提醒"
   },
   "language": {
     "label": "语言",
@@ -44,7 +47,7 @@
     "permission": "你的角色不允许执行此操作。",
     "notFound": "该内容不存在，或你没有访问权限。",
     "unavailable": "Minecraft 服务器繁忙或未运行，请稍后再试。",
-    "rateLimited": "尝试次数过多，请几分钟后再试。",
+    "rateLimited": "请求过于频繁，请稍后再试。",
     "error": "出现错误（{{code}}）。",
     "networkOffline": "ME 网络当前未加载，无法读取实时数据。",
     "codes": {
@@ -177,7 +180,8 @@
     "tabs": {
       "devices": "设备",
       "networks": "网络",
-      "preferences": "偏好"
+      "preferences": "偏好",
+      "server": "服务器"
     }
   },
   "devices": {
@@ -387,7 +391,8 @@
       "ACTIVE": "进行中",
       "COMPLETED": "已完成",
       "FAILED": "失败",
-      "CANCELLED": "已取消"
+      "CANCELLED": "已取消",
+      "SAVED": "已保存"
     },
     "ordersError": "无法加载合成订单",
     "empty": {
@@ -399,7 +404,23 @@
     "emptyHint": "在资源终端中打开一个可合成的资源，然后选择“合成”。",
     "loadMore": "加载更多",
     "activeTitle": "正在合成",
-    "activeNone": "没有忙碌的合成 CPU。"
+    "activeNone": "没有忙碌的合成 CPU。",
+    "saved": {
+      "error": "无法加载已保存的订单",
+      "none": "还没有已保存的订单",
+      "noneHint": "在任意订单上选择“保存为预设”，即可保留其资源、数量和 CPU 以便下次使用。",
+      "run": "运行",
+      "edit": "编辑",
+      "clone": "复制",
+      "delete": "删除",
+      "copyName": "{{name}}（副本）",
+      "saveAsPreset": "保存为预设",
+      "newTitle": "保存为预设",
+      "editTitle": "编辑已保存的订单",
+      "name": "名称",
+      "notes": "备注",
+      "confirmHint": "运行已保存的订单会像普通合成一样先计算方案并请求确认。"
+    }
   },
   "cpus": {
     "subtitle": "网络中的合成 CPU",
@@ -433,7 +454,8 @@
     "tabs": {
       "studio": "样板编辑",
       "providers": "样板供应器",
-      "history": "记录"
+      "history": "记录",
+      "duplicates": "重复样板"
     },
     "library": "样板草稿",
     "new": "新建样板",
@@ -572,7 +594,8 @@
       "kind": "类型",
       "machine": "所属机器",
       "rename": "重命名",
-      "renameHint": "留空即清除自定义名称"
+      "renameHint": "留空即清除自定义名称",
+      "settings": "设置"
     },
     "lockModes": {
       "NONE": "从不",
@@ -588,11 +611,238 @@
       "ENCODE": "已编码到存储",
       "DEPLOY": "已部署",
       "success": "完成"
+    },
+    "duplicates": {
+      "explain": "多个供应器中产出相同物品的样板。这常常是有意为之（并行机器）；AE2 会优先使用优先级更高的。",
+      "filter": "显示",
+      "filters": {
+        "all": "所有重复",
+        "same": "输入相同",
+        "different": "输入不同"
+      },
+      "same": "输入相同",
+      "different": "输入不同",
+      "priority": "优先级 {{priority}}",
+      "slot": "槽位 {{slot}}",
+      "none": "没有重复的样板",
+      "noneHint": "已加载的供应器中没有两个样板产出相同的主产物。"
     }
   },
   "update": {
     "title": "ME Control Center 已更新",
     "body": "当前页面仍在运行旧版本，请刷新以使用新版本。",
     "reload": "刷新"
+  },
+  "insights": {
+    "title": "资源观测",
+    "subtitle": "你关注的资源的历史数据",
+    "watchlist": "关注列表",
+    "trend": "库存趋势",
+    "mode": "图表模式",
+    "range": "时间范围",
+    "modes": {
+      "quantity": "数量",
+      "change": "变化 %"
+    },
+    "ranges": {
+      "1h": "1小时",
+      "6h": "6小时",
+      "1d": "1天",
+      "7d": "7天",
+      "30d": "30天",
+      "180d": "180天",
+      "360d": "360天",
+      "max": "全部"
+    },
+    "watch": "关注",
+    "unwatch": "取消关注",
+    "watched": "已关注",
+    "open": "打开",
+    "emptyTitle": "还没有关注任何资源",
+    "emptyBody": "在资源终端中打开一个资源并点击「关注」，即可追踪它的库存变化。",
+    "openTerminal": "打开资源终端",
+    "noDataTitle": "暂无历史数据",
+    "noDataBody": "网络加载时会定期采样关注的资源，第一批数据很快就会出现。",
+    "samplingDisabled": "服务器管理员已关闭资源历史记录（analytics.enabled = false）。",
+    "zeroStart": "部分资源在此范围开始时数量为 0，无法计算百分比。切换到「数量」即可查看。",
+    "updated": "数量更新于 {{time}}",
+    "offlineAmounts": "网络未加载：暂无当前数量",
+    "count": "已关注 {{used}} / {{limit}}",
+    "change6h": "最近 6 小时"
+  },
+  "audit": {
+    "title": "审计日志",
+    "serverTitle": "服务器审计日志",
+    "empty": "暂无记录的操作",
+    "more": "显示更早的记录",
+    "console": "服务器控制台",
+    "by": "操作者：{{name}}",
+    "target": "对象：{{target}}",
+    "deletedNetwork": "已删除的网络",
+    "results": {
+      "SUCCESS": "成功",
+      "DENIED": "已拒绝",
+      "FAILED": "失败"
+    },
+    "actions": {
+      "DEVICE_PAIR": "配对设备",
+      "DEVICE_RENAME": "重命名设备",
+      "DEVICE_REVOKE": "撤销设备",
+      "NETWORK_CLAIM": "登记网络",
+      "NETWORK_RENAME": "重命名网络",
+      "NETWORK_DELETE": "移除网络",
+      "NETWORK_SHARE": "共享网络",
+      "NETWORK_MEMBER_ROLE_CHANGE": "修改成员角色",
+      "NETWORK_MEMBER_REMOVE": "移除成员",
+      "CRAFT_SUBMIT": "开始合成",
+      "CRAFT_CANCEL": "取消合成",
+      "PATTERN_ENCODE": "编码样板",
+      "PATTERN_DEPLOY": "部署样板",
+      "PROVIDER_SETTING_CHANGE": "修改样板供应器设置",
+      "DATABASE_BACKUP": "备份数据库"
+    }
+  },
+  "admin": {
+    "title": "服务器管理",
+    "server": "服务器",
+    "version": "ME Control Center",
+    "platform": "平台",
+    "database": "数据库",
+    "schemaVersion": "结构版本",
+    "size": "大小",
+    "backupHint": "备份是在服务器运行时写出的一致副本。每次数据库升级前也会自动备份一次；保留最新的 10 份。",
+    "noBackups": "暂无备份。",
+    "backUpNow": "立即备份",
+    "backingUp": "正在备份…",
+    "configuration": "配置",
+    "configHint": "当前生效的设置，读取自 {{file}}。如需修改，请编辑该文件并重启服务器。",
+    "contentPacks": "内容包",
+    "noContentPacks": "没有内容包。图标和名称来自服务器自身的资源；可选的客户端导出器请参见 README。",
+    "packStatus": {
+      "MATCH": "与本服务器一致",
+      "MISMATCH": "整合包版本不同",
+      "SKIPPED": "未使用"
+    },
+    "packFingerprint": "指纹 {{hash}}",
+    "packIcons_one": "{{count}} 个图标",
+    "packIcons_other": "{{count}} 个图标"
+  },
+  "alerts": {
+    "subtitle": "库存不足、网络掉线或合成完成时通知你。",
+    "rules": "你的提醒规则",
+    "rulesHint": "规则是个人的，由服务器检查，关闭本页面也照常工作。",
+    "noRules": "还没有规则。在下方添加。",
+    "noRulesShort": "此网络上没有提醒规则。",
+    "allClear": "一切正常。",
+    "current": "当前提醒",
+    "manage": "管理提醒",
+    "active": "触发中",
+    "ok": "正常",
+    "disabled": "已关闭",
+    "enable": "开启",
+    "disable": "关闭",
+    "delete": "删除",
+    "cooldown": "最多每 {{minutes}} 分钟一次",
+    "lastNotified": "上次提醒于 {{time}}",
+    "newRule": "新规则",
+    "type": "条件",
+    "resource": "资源",
+    "resourceOptional": "资源（可选）",
+    "choose": "选择…",
+    "change": "更换",
+    "anyResource": "任意资源",
+    "threshold": "数量",
+    "thresholdIn": "数量（{{unit}}）",
+    "thresholdPercent": "能量百分比",
+    "cooldownLabel": "两次提醒间隔（分钟）",
+    "add": "添加规则",
+    "blankPatternPreset": "空白样板少于 32",
+    "full": "规则数量已达上限。",
+    "recent": "最近的提醒",
+    "noEvents": "暂无提醒。",
+    "channels": "通知方式",
+    "channelsHint": "提醒总会显示在这里，也可以弹出浏览器通知，或发送到 Discord 和任意 Webhook。",
+    "browserOn": "开启浏览器通知",
+    "browserOff": "关闭浏览器通知",
+    "browserEnabled": "ME Control Center 打开时，此浏览器会显示通知。",
+    "browserDenied": "此浏览器已阻止本站点的通知。",
+    "browserUnsupported": "此浏览器不支持通知。",
+    "webhooksOff": "此服务器已关闭 Webhook。",
+    "discord": "Discord Webhook 地址",
+    "webhook": "通用 Webhook 地址（JSON POST）",
+    "webhookHint": "留空即不再发送。不允许使用服务器内部网络中的地址。",
+    "saved": "已保存。",
+    "test": "发送测试",
+    "testing": "发送中…",
+    "delivered": "已送达",
+    "channel": {
+      "discord": "Discord",
+      "webhook": "Webhook"
+    },
+    "kind": {
+      "TRIGGERED": "提醒",
+      "RESOLVED": "已恢复"
+    },
+    "types": {
+      "RESOURCE_BELOW": "数量低于",
+      "RESOURCE_ABOVE": "数量高于",
+      "NETWORK_OFFLINE": "网络离线",
+      "ENERGY_LOW": "能量低于",
+      "CPU_SATURATED": "所有合成 CPU 都在忙",
+      "CRAFT_COMPLETED": "我的合成完成",
+      "CRAFT_FAILED": "我的合成失败",
+      "RESOURCE_DROP": "数量下降超过",
+      "RESOURCE_RISE": "数量上涨超过",
+      "CRAFT_STALLED": "我的合成停滞超过"
+    },
+    "message": {
+      "RESOURCE_BELOW": {
+        "TRIGGERED": "{{resource}} 低于 {{threshold}}：剩余 {{value}}",
+        "RESOLVED": "{{resource}} 已恢复到 {{value}}"
+      },
+      "RESOURCE_ABOVE": {
+        "TRIGGERED": "{{resource}} 高于 {{threshold}}：当前 {{value}}",
+        "RESOLVED": "{{resource}} 已回落到 {{value}}"
+      },
+      "NETWORK_OFFLINE": {
+        "TRIGGERED": "网络离线",
+        "RESOLVED": "网络已恢复在线"
+      },
+      "ENERGY_LOW": {
+        "TRIGGERED": "能量不足：{{value}}%（低于 {{threshold}}%）",
+        "RESOLVED": "能量已恢复：{{value}}%"
+      },
+      "CPU_SATURATED": {
+        "TRIGGERED": "所有合成 CPU 都在忙",
+        "RESOLVED": "有合成 CPU 空闲了"
+      },
+      "CRAFT_COMPLETED": {
+        "TRIGGERED": "合成完成：{{value}} × {{resource}}",
+        "RESOLVED": "合成完成：{{value}} × {{resource}}"
+      },
+      "CRAFT_FAILED": {
+        "TRIGGERED": "合成失败：{{value}} × {{resource}}",
+        "RESOLVED": "合成失败：{{value}} × {{resource}}"
+      },
+      "RESOURCE_DROP": {
+        "TRIGGERED": "{{resource}} 下降了 {{value}}%（阈值 {{threshold}}%）",
+        "RESOLVED": "{{resource}} 的下降已回到 {{threshold}}% 以内"
+      },
+      "RESOURCE_RISE": {
+        "TRIGGERED": "{{resource}} 上涨了 {{value}}%（阈值 {{threshold}}%）",
+        "RESOLVED": "{{resource}} 的上涨已回到 {{threshold}}% 以内"
+      },
+      "CRAFT_STALLED": {
+        "TRIGGERED": "合成 {{value}} × {{resource}} 已 {{threshold}} 分钟没有进展",
+        "RESOLVED": "合成 {{value}} × {{resource}} 恢复进展"
+      }
+    },
+    "minutes_one": "{{count}} 分钟",
+    "minutes_other": "{{count}} 分钟",
+    "withinWindow_one": "{{count}} 分钟内 {{change}}",
+    "withinWindow_other": "{{count}} 分钟内 {{change}}",
+    "thresholdMinutes": "无进展分钟数",
+    "thresholdChange": "变化百分比",
+    "windowLabel": "与多少分钟前相比"
   }
 }

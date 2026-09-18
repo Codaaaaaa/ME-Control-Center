@@ -77,6 +77,8 @@ class ConfigLoaderTest {
                 admin_op_level = 3
                 require_https_cookie = true
                 allowed_origins = ["https://panel.example.org"]
+                rate_limit_requests_per_minute = 600
+                rate_limit_writes_per_minute = 30
                 [networks]
                 discovery_interval_seconds = 30
                 """);
@@ -84,7 +86,7 @@ class ConfigLoaderTest {
 
         assertEquals("https://mecc.example.org", config.web().publicOrigin());
         assertEquals(new SecurityConfig(120, List.of("127.0.0.1", "10.0.0.0/8"), false, 3, true,
-                List.of("https://panel.example.org")), config.security());
+                List.of("https://panel.example.org"), 600, 30), config.security());
         assertEquals(2, config.security().trustedProxyRanges().size());
         assertEquals(30, config.networks().discoveryIntervalSeconds());
     }

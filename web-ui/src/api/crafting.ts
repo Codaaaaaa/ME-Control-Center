@@ -189,8 +189,63 @@ export function fetchPlan(networkId: string, planId: string, locale: string, sig
   return getJson(`${base(networkId)}/plans/${encodeURIComponent(planId)}?locale=${encodeURIComponent(locale)}`, planSchema, signal);
 }
 
-export function submitPlan(networkId: string, planId: string, cpuId: string | null, locale: string): Promise<Order> {
-  return sendJson('POST', `${base(networkId)}/orders`, { planId, cpuId, locale }, orderSchema);
+/** `source` is `SAVED_ORDER` when the player ran a saved order (spec section 24). */
+export function submitPlan(
+  networkId: string,
+  planId: string,
+  cpuId: string | null,
+  locale: string,
+  source: 'MANUAL' | 'SAVED_ORDER' = 'MANUAL',
+): Promise<Order> {
+  return sendJson('POST', `${base(networkId)}/orders`, { planId, cpuId, source, locale }, orderSchema);
+}
+
+// --- Saved Craft Orders (spec section 24) -------------------------------------------------------------
+
+export const savedOrderSchema = z.object({
+  id: z.string(),
+  networkId: z.string(),
+  name: z.string(),
+  target: resourceLabelSchema,
+  /** Raw, like order amounts. */
+  amount: z.number(),
+  /** Preferred CPU, or null for automatic. */
+  cpuId: z.string().nullable(),
+  notes: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type SavedOrder = z.infer<typeof savedOrderSchema>;
+
+export const savedOrderListSchema = z.object({
+  orders: z.array(savedOrderSchema),
+  limit: z.number(),
+  assetVersion: z.string(),
+});
+export type SavedOrderList = z.infer<typeof savedOrderListSchema>;
+
+export interface SavedOrderInput {
+  name: string;
+  resourceId: string;
+  amount: number;
+  cpuId: string | null;
+  notes: string;
+}
+
+export function fetchSavedOrders(networkId: string, locale: string, signal?: AbortSignal): Promise<SavedOrderList> {
+  return getJson(`${base(networkId)}/saved-orders?locale=${encodeURIComponent(locale)}`, savedOrderListSchema, signal);
+}
+
+export function createSavedOrder(networkId: string, input: SavedOrderInput, locale: string): Promise<SavedOrder> {
+  return sendJson('POST', `${base(networkId)}/saved-orders`, { ...input, locale }, savedOrderSchema);
+}
+
+export function updateSavedOrder(networkId: string, id: string, input: SavedOrderInput, locale: string): Promise<SavedOrder> {
+  return sendJson('PATCH', `${base(networkId)}/saved-orders/${encodeURIComponent(id)}`, { ...input, locale }, savedOrderSchema);
+}
+
+export function deleteSavedOrder(networkId: string, id: string): Promise<void> {
+  return sendNoContent('DELETE', `${base(networkId)}/saved-orders/${encodeURIComponent(id)}`);
 }
 
 export function fetchOrders(

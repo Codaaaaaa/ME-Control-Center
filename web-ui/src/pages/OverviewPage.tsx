@@ -1,6 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { useNetwork, useNetworks } from '../api/queries';
 import { ActiveCraftingCard } from '../components/crafting/ActiveCraftingCard';
+import { ActiveAlertsCard } from './AlertsPage';
+import { WatchlistPanel } from '../components/insights/WatchlistPanel';
 import { ClaimNetworks } from '../components/network/ClaimNetworks';
 import { NetworkPicker } from '../components/network/NetworkPicker';
 import { NetworkStatusCard } from '../components/network/NetworkStatusCard';
@@ -78,6 +80,8 @@ function SelectedNetwork({ id }: { id: string }) {
     <>
       <NetworkStatusCard detail={detail.data} />
       {detail.data.status ? <ActiveCraftingCard networkId={id} /> : null}
+      <ActiveAlertsCard networkId={id} />
+      <WatchlistPanel key={id} networkId={id} />
     </>
   );
 }

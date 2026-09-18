@@ -6,9 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.codaaaaaa.mecc.core.admin.AdminViews.BackupView;
+import io.github.codaaaaaa.mecc.core.admin.AdminViews.DatabaseView;
 import io.github.codaaaaaa.mecc.core.audit.AuditAction;
 import io.github.codaaaaaa.mecc.core.audit.AuditEvent;
 import io.github.codaaaaaa.mecc.core.audit.AuditEvent.AuditResult;
+import io.github.codaaaaaa.mecc.core.audit.AuditRepository.AuditRecord;
 import io.github.codaaaaaa.mecc.core.auth.Device;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingOrder;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingOrderRepository;
@@ -164,7 +167,79 @@ class SqliteDataStoreTest {
             repos.audit().append(event);
             return null;
         }));
-        assertEquals(List.of(event), await(store.read(repos -> repos.audit().recent(10))));
+        assertEquals(List.of(event), await(store.read(repos -> repos.audit().list(null, null, 10)))
+                .stream().map(AuditRecord::event).toList());
+    }
+
+    @Test
+    void auditLogPagesNewestFirstAndFiltersByNetwork() throws Exception {
+        UUID network = UUID.randomUUID();
+        await(store.write(repos -> {
+            for (int i = 0; i < 5; i++) {
+                repos.audit().append(new AuditEvent(NOW.plusSeconds(i), steve.uuid(), "dev", i % 2 == 0 ? network : null,
+                        AuditAction.CRAFT_SUBMIT, "t" + i, AuditResult.SUCCESS, false, Map.of()));
+            }
+            return null;
+        }));
+        List<AuditRecord> newest = await(store.read(repos -> repos.audit().list(null, null, 2)));
+        assertEquals(List.of("t4", "t3"), newest.stream().map(record -> record.event().target()).toList());
+        long before = newest.get(1).id();
+        assertEquals(List.of("t2", "t1", "t0"), await(store.read(repos -> repos.audit().list(null, before, 10)))
+                .stream().map(record -> record.event().target()).toList());
+        assertEquals(List.of("t4", "t2", "t0"), await(store.read(repos -> repos.audit().list(network, null, 10)))
+                .stream().map(record -> record.event().target()).toList());
+    }
+
+    @Test
+    void backupIsAConsistentCopyAndOldOnesArePruned() throws Exception {
+        await(store.write(repos -> repos.users().upsert(steve, NOW)));
+        BackupView backup = await(store.backup());
+        Path file = dir.resolve(SqliteDataStore.BACKUP_DIRECTORY).resolve(backup.name());
+        try (var connection = DriverManager.getConnection("jdbc:sqlite:" + file)) {
+            assertEquals(Migrations.latestVersion(), Migrations.currentVersion(connection));
+            var rows = connection.createStatement().executeQuery("SELECT player_name FROM users");
+            assertTrue(rows.next());
+            assertEquals("Steve", rows.getString(1));
+        }
+        for (int i = 0; i < SqliteDataStore.KEEP_BACKUPS + 2; i++) {
+            await(store.backup());
+        }
+        DatabaseView info = await(store.info());
+        assertEquals(SqliteDataStore.KEEP_BACKUPS, info.backups().size());
+        assertEquals(Migrations.latestVersion(), info.schemaVersion());
+        assertTrue(info.sizeBytes() > 0);
+        assertFalse(info.backups().stream().anyMatch(view -> view.name().equals(backup.name())), "oldest pruned");
+    }
+
+    @Test
+    void upgradingAnOlderSchemaBacksItUpFirst() throws Exception {
+        store.close();
+        Path old = dir.resolve("old.db");
+        try (var connection = DriverManager.getConnection("jdbc:sqlite:" + old);
+             var statement = connection.createStatement()) {
+            statement.executeUpdate("CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+                    + "applied_at INTEGER NOT NULL)");
+            for (Migrations.Migration migration : Migrations.ALL.subList(0, Migrations.ALL.size() - 1)) {
+                for (String sql : migration.sql().split(";")) {
+                    if (!sql.isBlank()) {
+                        statement.executeUpdate(sql);
+                    }
+                }
+                statement.executeUpdate("INSERT INTO schema_migrations VALUES (" + migration.version() + ", 'x', 0)");
+            }
+        }
+        store = SqliteDataStore.open(old);
+        List<BackupView> backups = await(store.info()).backups();
+        assertEquals(1, backups.size());
+        assertTrue(backups.get(0).name().endsWith("-pre-v" + Migrations.latestVersion() + ".db"), backups.get(0).name());
+        try (var connection = DriverManager.getConnection("jdbc:sqlite:"
+                + dir.resolve(SqliteDataStore.BACKUP_DIRECTORY).resolve(backups.get(0).name()))) {
+            assertEquals(Migrations.latestVersion() - 1, Migrations.currentVersion(connection), "backup has the old schema");
+        }
+
+        store.close();
+        store = SqliteDataStore.open(old);
+        assertEquals(1, await(store.info()).backups().size(), "no backup without an upgrade");
     }
 
     @Test

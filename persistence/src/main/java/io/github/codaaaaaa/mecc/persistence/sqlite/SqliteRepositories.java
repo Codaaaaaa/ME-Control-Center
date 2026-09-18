@@ -1,8 +1,12 @@
 package io.github.codaaaaaa.mecc.persistence.sqlite;
 
+import io.github.codaaaaaa.mecc.core.alerts.AlertRepository;
 import io.github.codaaaaaa.mecc.core.audit.AuditRepository;
 import io.github.codaaaaaa.mecc.core.auth.DeviceRepository;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingOrderRepository;
+import io.github.codaaaaaa.mecc.core.crafting.SavedOrderRepository;
+import io.github.codaaaaaa.mecc.core.insights.SampleRepository;
+import io.github.codaaaaaa.mecc.core.insights.WatchlistRepository;
 import io.github.codaaaaaa.mecc.core.networks.NetworkRepository;
 import io.github.codaaaaaa.mecc.core.patterns.PatternDeploymentRepository;
 import io.github.codaaaaaa.mecc.core.patterns.PatternDraftRepository;
@@ -17,6 +21,10 @@ final class SqliteRepositories implements Repositories {
     private final CraftingOrderRepository orders;
     private final PatternDraftRepository patternDrafts;
     private final PatternDeploymentRepository patternDeployments;
+    private final WatchlistRepository watchlist;
+    private final SampleRepository samples;
+    private final SavedOrderRepository savedOrders;
+    private final AlertRepository alerts;
 
     SqliteRepositories(Jdbc jdbc) {
         this.users = new SqliteUserRepository(jdbc);
@@ -26,6 +34,10 @@ final class SqliteRepositories implements Repositories {
         this.orders = new SqliteOrderRepository(jdbc);
         this.patternDrafts = new SqlitePatternDraftRepository(jdbc);
         this.patternDeployments = new SqlitePatternDeploymentRepository(jdbc);
+        this.watchlist = new SqliteWatchlistRepository(jdbc);
+        this.samples = new SqliteSampleRepository(jdbc);
+        this.savedOrders = new SqliteSavedOrderRepository(jdbc);
+        this.alerts = new SqliteAlertRepository(jdbc);
     }
 
     @Override
@@ -61,5 +73,25 @@ final class SqliteRepositories implements Repositories {
     @Override
     public PatternDeploymentRepository patternDeployments() {
         return patternDeployments;
+    }
+
+    @Override
+    public WatchlistRepository watchlist() {
+        return watchlist;
+    }
+
+    @Override
+    public SampleRepository samples() {
+        return samples;
+    }
+
+    @Override
+    public SavedOrderRepository savedOrders() {
+        return savedOrders;
+    }
+
+    @Override
+    public AlertRepository alerts() {
+        return alerts;
     }
 }

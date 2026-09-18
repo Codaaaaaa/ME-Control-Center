@@ -8,17 +8,24 @@ import io.github.codaaaaaa.mecc.core.command.CommandService;
 import io.github.codaaaaaa.mecc.core.command.ServerText;
 import io.github.codaaaaaa.mecc.core.concurrent.NamedThreadFactory;
 import io.github.codaaaaaa.mecc.core.config.ConfigValidationException;
+import io.github.codaaaaaa.mecc.core.config.MeccConfig;
 import io.github.codaaaaaa.mecc.core.config.ResourcesConfig;
 import io.github.codaaaaaa.mecc.core.config.SecurityConfig;
 import io.github.codaaaaaa.mecc.core.config.WebConfig;
-import io.github.codaaaaaa.mecc.core.config.MeccConfig;
+import io.github.codaaaaaa.mecc.core.crafting.CraftingOrder;
 import io.github.codaaaaaa.mecc.core.error.MeccException;
 import io.github.codaaaaaa.mecc.core.live.LiveEventService;
+import io.github.codaaaaaa.mecc.core.networks.WebNetwork;
 import io.github.codaaaaaa.mecc.core.status.StatusService;
 import io.github.codaaaaaa.mecc.core.users.PlayerProfile;
 import io.github.codaaaaaa.mecc.persistence.sqlite.SqliteDataStore;
+import io.github.codaaaaaa.mecc.platform.CraftingPlatform.CpuCapture;
 import io.github.codaaaaaa.mecc.platform.MeccPlatform;
 import io.github.codaaaaaa.mecc.platform.thread.DefaultServerThreadGateway;
+import io.github.codaaaaaa.mecc.runtime.admin.DefaultAdminService;
+import io.github.codaaaaaa.mecc.runtime.alerts.AlertMonitor;
+import io.github.codaaaaaa.mecc.runtime.alerts.AlertNotifier;
+import io.github.codaaaaaa.mecc.runtime.alerts.DefaultAlertService;
 import io.github.codaaaaaa.mecc.runtime.assets.AssetCatalog;
 import io.github.codaaaaaa.mecc.runtime.assets.ContentPacks;
 import io.github.codaaaaaa.mecc.runtime.assets.VanillaAssets;
@@ -30,9 +37,12 @@ import io.github.codaaaaaa.mecc.runtime.crafting.CpuSnapshots;
 import io.github.codaaaaaa.mecc.runtime.crafting.CraftingPresenter;
 import io.github.codaaaaaa.mecc.runtime.crafting.CraftingTracker;
 import io.github.codaaaaaa.mecc.runtime.crafting.DefaultCraftingService;
+import io.github.codaaaaaa.mecc.runtime.crafting.DefaultSavedOrderService;
 import io.github.codaaaaaa.mecc.runtime.crafting.PlanStore;
 import io.github.codaaaaaa.mecc.runtime.crafting.ResourceLabels;
 import io.github.codaaaaaa.mecc.runtime.crafting.UserCache;
+import io.github.codaaaaaa.mecc.runtime.insights.DefaultInsightsService;
+import io.github.codaaaaaa.mecc.runtime.insights.InsightsSampler;
 import io.github.codaaaaaa.mecc.runtime.live.LiveEvents;
 import io.github.codaaaaaa.mecc.runtime.networks.DefaultNetworkService;
 import io.github.codaaaaaa.mecc.runtime.networks.NetworkDirectory;
@@ -42,6 +52,7 @@ import io.github.codaaaaaa.mecc.runtime.patterns.PatternPresenter;
 import io.github.codaaaaaa.mecc.runtime.patterns.ProviderSnapshots;
 import io.github.codaaaaaa.mecc.runtime.patterns.RecipeLibrary;
 import io.github.codaaaaaa.mecc.runtime.resources.DefaultResourceService;
+import io.github.codaaaaaa.mecc.runtime.resources.ResourceResolver;
 import io.github.codaaaaaa.mecc.runtime.resources.ResourceSnapshots;
 import io.github.codaaaaaa.mecc.runtime.resources.TagIndex;
 import io.github.codaaaaaa.mecc.runtime.status.DefaultStatusService;
@@ -56,6 +67,7 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutorService;
@@ -64,6 +76,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -105,6 +118,8 @@ public final class MeccRuntime {
     private CraftingTracker craftingTracker;
     private PlanStore craftingPlans;
     private LiveEvents liveEvents;
+    private InsightsSampler insightsSampler;
+    private AlertMonitor alertMonitor;
     private AssetCatalog assets;
     private ThreadPoolExecutor iconWorkers;
     private WebServer webServer;
@@ -145,6 +160,16 @@ public final class MeccRuntime {
     /** Completes when asynchronous startup has finished (successfully or not). For tests and diagnostics. */
     public synchronized CompletableFuture<Void> startupFuture() {
         return startup;
+    }
+
+    /** The watchlist sampler, or {@code null} before startup finished. For tests. */
+    synchronized InsightsSampler insightsSampler() {
+        return insightsSampler;
+    }
+
+    /** The alert engine, or {@code null} before startup finished. For tests. */
+    synchronized AlertMonitor alertMonitor() {
+        return alertMonitor;
     }
 
     /** Port the web server is bound to, or -1 when it is not running. */
@@ -257,11 +282,11 @@ public final class MeccRuntime {
                 security.adminOpLevel(), pairingUrl(config.web()), clock);
 
         // Icons and names come from static assets only; rendering never touches Minecraft state.
+        ContentPacks contentPacks = new ContentPacks(platform.configDirectory().resolve("content-packs"),
+                platform.info().minecraftVersion(), platform.assets().modVersions());
         AssetCatalog assetCatalog = new AssetCatalog(platform.assets().assetPacks(),
                 new VanillaAssets(platform.configDirectory().resolve("cache"), platform.info().minecraftVersion()),
-                new ContentPacks(platform.configDirectory().resolve("content-packs"), platform.info().minecraftVersion(),
-                        platform.assets().modVersions()),
-                platform.configDirectory().resolve("resourcepacks"));
+                contentPacks, platform.configDirectory().resolve("resourcepacks"));
         assetCatalog.rebuild();
         // Core threads, not maximum threads: with a queue this deep a pool that grows on demand would run
         // every icon of a freshly opened terminal through a single thread.
@@ -289,16 +314,49 @@ public final class MeccRuntime {
         DefaultCraftingService craftingService = new DefaultCraftingService(store, guard, platform.crafting(), gateway,
                 cpuSnapshots, plans, tracker, presenter, labels, userCache, scheduler, workers, config.crafting(), clock);
         LiveEvents live = new LiveEvents(guard, presenter, cpuSnapshots, userCache, clock);
-        tracker.connect(cpuSnapshots, live, live::subscribedNetworks);
-        craftingService.onOrderEvent(live::orderChanged);
+
+        // Alerts (spec section 23): evaluated from discovery status and the terminal's storage snapshots.
+        AlertNotifier alertNotifier = new AlertNotifier(store, config.alerts(), labels,
+                networkId -> networkName(networkDirectory, networkId), live::playerEvent, workers, clock);
+        AlertMonitor alertMonitor = new AlertMonitor(store, networkDirectory, resourceSnapshots, tracker::activeOrders,
+                alertNotifier, config.alerts(), clock);
+        BiConsumer<CraftingOrder, String> orderEvents = (order, type) -> {
+            live.orderChanged(order, type);
+            alertMonitor.orderChanged(order, type);
+        };
+        tracker.connect(cpuSnapshots, new CraftingTracker.Listener() {
+            @Override
+            public void orderChanged(CraftingOrder order, String eventType) {
+                orderEvents.accept(order, eventType);
+            }
+
+            @Override
+            public void cpusCaptured(UUID networkId, CpuCapture capture) {
+                live.cpusCaptured(networkId, capture);
+            }
+        }, live::subscribedNetworks);
+        craftingService.onOrderEvent(orderEvents::accept);
 
         // Pattern Studio (spec sections 13-17).
+        RecipeLibrary recipeLibrary = new RecipeLibrary(platform.recipes(), gateway, workers);
         DefaultPatternService patternService = new DefaultPatternService(store, guard, platform.patterns(), gateway,
-                new RecipeLibrary(platform.recipes(), gateway, workers),
+                recipeLibrary,
                 new ProviderSnapshots(platform.patterns(), gateway, clock, PROVIDER_SNAPSHOT_MAX_AGE),
                 new PatternPresenter(labels, iconService::assetVersion), labels, tagIndex, assetCatalog::names,
                 platform.assets().modNames(), userCache, config.patterns(), clock);
         patternService.onLiveEvent(live::networkEvent);
+
+        // Insights (spec sections 21-22): sampling shares the terminal's storage snapshots.
+        DefaultInsightsService insightsService = new DefaultInsightsService(store, guard, resourceSnapshots, labels,
+                iconService::assetVersion, config.analytics(), clock);
+        InsightsSampler sampler = new InsightsSampler(store, guard, resourceSnapshots, config.analytics(), clock);
+        ResourceResolver resolver = new ResourceResolver(guard, resourceSnapshots, recipeLibrary);
+        DefaultSavedOrderService savedOrderService = new DefaultSavedOrderService(store, guard, resolver, labels,
+                iconService::assetVersion, config.crafting(), clock);
+        DefaultAlertService alertService = new DefaultAlertService(store, guard, resolver, labels, alertNotifier,
+                iconService::assetVersion, config.alerts(), clock);
+        DefaultAdminService adminService = new DefaultAdminService(store, guard, config, loader.file().toString(),
+                platform.meccVersion(), platform.info(), contentPacks::status, clock);
 
         synchronized (this) {
             if (phase == Phase.STOPPED) {
@@ -315,6 +373,8 @@ public final class MeccRuntime {
             craftingTracker = tracker;
             craftingPlans = plans;
             liveEvents = live;
+            insightsSampler = sampler;
+            this.alertMonitor = alertMonitor;
 
             commands = commandService;
             phase = Phase.RUNNING;
@@ -323,6 +383,16 @@ public final class MeccRuntime {
         scheduler.scheduleWithFixedDelay(resourceSnapshots::evictIdle, 1, 1, TimeUnit.MINUTES);
         scheduler.scheduleWithFixedDelay(plans::purgeExpired, 1, 1, TimeUnit.MINUTES);
         live.start(scheduler, networkDirectory);
+        if (config.analytics().enabled()) {
+            sampler.start(scheduler);
+        } else {
+            LOGGER.info("ME Control Center resource history disabled by configuration (analytics.enabled = false)");
+        }
+        if (config.alerts().enabled()) {
+            alertMonitor.start(scheduler);
+        } else {
+            LOGGER.info("ME Control Center alerts disabled by configuration (alerts.enabled = false)");
+        }
         tracker.start(scheduler).exceptionally(error -> {
             LOGGER.error("ME Control Center could not load active crafting orders; they are not tracked until restart", error);
             return null;
@@ -338,7 +408,7 @@ public final class MeccRuntime {
         }
         startWebServer(web, security,
                 new WebApi.Services(statusService, auth, networks, resourceService, iconService, craftingService,
-                        patternService), auth, live);
+                        patternService, insightsService, adminService, savedOrderService, alertService), auth, live);
     }
 
     private void startWebServer(WebConfig web, SecurityConfig security, WebApi.Services services, DefaultAuthService auth,
@@ -360,7 +430,8 @@ public final class MeccRuntime {
             allowedOrigins.add(web.publicOrigin());
         }
         ApiSecurity apiSecurity = new ApiSecurity(security.trustedProxyRanges(), security.requireHttpsCookie(),
-                allowedOrigins, ApiSecurity.DEFAULT_MAX_BODY_BYTES);
+                allowedOrigins, ApiSecurity.DEFAULT_MAX_BODY_BYTES, security.rateLimitRequestsPerMinute(),
+                security.rateLimitWritesPerMinute());
 
         WebServer server = new WebServer(web.host(), web.port(), web.maxThreads(), WebApi.routes(services), assets,
                 apiSecurity, auth::authenticate, live);
@@ -398,6 +469,13 @@ public final class MeccRuntime {
     }
 
     /** The URL shown by {@code /mecc pair}, or {@code null} when it cannot be known. */
+    /** A network's current name, or {@code null} before discovery or for a deleted network. */
+    private static String networkName(NetworkDirectory directory, UUID networkId) {
+        NetworkDirectory.State state = directory.current();
+        WebNetwork network = state == null ? null : state.records().get(networkId);
+        return network == null ? null : network.displayName();
+    }
+
     static String pairingUrl(WebConfig web) {
         if (!web.publicBaseUrl().isEmpty()) {
             return web.publicBaseUrl();

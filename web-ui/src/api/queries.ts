@@ -1,6 +1,9 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as admin from './admin';
+import * as alerts from './alerts';
 import * as auth from './auth';
 import * as crafting from './crafting';
+import * as insights from './insights';
 import * as networks from './networks';
 import * as patterns from './patterns';
 
@@ -18,6 +21,13 @@ export const queryKeys = {
     ['crafting', networkId, 'orders', filter, locale] as const,
   order: (networkId: string, orderId: string, locale: string) => ['crafting', networkId, 'order', orderId, locale] as const,
   plan: (networkId: string, planId: string, locale: string) => ['crafting', networkId, 'plan', planId, locale] as const,
+  savedOrders: (networkId: string, locale: string) => ['crafting', networkId, 'saved', locale] as const,
+  insights: (networkId: string) => ['insights', networkId] as const,
+  watchlist: (networkId: string, locale: string) => ['insights', networkId, 'watchlist', locale] as const,
+  series: (networkId: string, range: insights.Range, resourceId: string | undefined) =>
+    ['insights', networkId, 'series', range, resourceId ?? null] as const,
+  admin: ['admin'] as const,
+  auditLog: (networkId: string | null) => ['audit', networkId] as const,
 };
 
 /** Crafting data refresh: slow when live updates arrive over the WebSocket, fast when they do not. */
@@ -217,8 +227,8 @@ export function useCraftingMutations(networkId: string, locale: string) {
       onSuccess: (plan) => client.setQueryData(queryKeys.plan(networkId, plan.id, locale), plan),
     }),
     submit: useMutation({
-      mutationFn: ({ planId, cpuId }: { planId: string; cpuId: string | null }) =>
-        crafting.submitPlan(networkId, planId, cpuId, locale),
+      mutationFn: ({ planId, cpuId, source }: { planId: string; cpuId: string | null; source?: 'MANUAL' | 'SAVED_ORDER' }) =>
+        crafting.submitPlan(networkId, planId, cpuId, locale, source),
       onSettled: refresh,
     }),
     cancelOrder: useMutation({
@@ -230,6 +240,30 @@ export function useCraftingMutations(networkId: string, locale: string) {
         crafting.cancelCpuJob(networkId, cpuId, jobId),
       onSettled: refresh,
     }),
+  };
+}
+
+export function useSavedOrders(networkId: string, locale: string) {
+  return useQuery({
+    queryKey: queryKeys.savedOrders(networkId, locale),
+    queryFn: ({ signal }) => crafting.fetchSavedOrders(networkId, locale, signal),
+  });
+}
+
+export function useSavedOrderMutations(networkId: string, locale: string) {
+  const client = useQueryClient();
+  const refresh = () => void client.invalidateQueries({ queryKey: ['crafting', networkId, 'saved'] });
+  return {
+    create: useMutation({
+      mutationFn: (input: crafting.SavedOrderInput) => crafting.createSavedOrder(networkId, input, locale),
+      onSuccess: refresh,
+    }),
+    update: useMutation({
+      mutationFn: ({ id, input }: { id: string; input: crafting.SavedOrderInput }) =>
+        crafting.updateSavedOrder(networkId, id, input, locale),
+      onSuccess: refresh,
+    }),
+    remove: useMutation({ mutationFn: (id: string) => crafting.deleteSavedOrder(networkId, id), onSuccess: refresh }),
   };
 }
 
@@ -295,6 +329,11 @@ export function usePatternMutations(networkId: string, locale: string) {
         patterns.encodePattern(networkId, definition, draftId, locale),
       onSettled: refresh,
     }),
+    configure: useMutation({
+      mutationFn: ({ providerId, settings }: { providerId: string; settings: patterns.ProviderSettings }) =>
+        patterns.configureProvider(networkId, providerId, settings),
+      onSettled: refresh,
+    }),
     rename: useMutation({
       mutationFn: ({ providerId, name }: { providerId: string; name: string }) =>
         patterns.renameProvider(networkId, providerId, name),
@@ -309,4 +348,126 @@ export function usePatternMutations(networkId: string, locale: string) {
       onSettled: refresh,
     }),
   };
+}
+
+// --- Insights (spec sections 21-22) ----------------------------------------------------------------
+
+/** Watched amounts follow the storage snapshot; history gains a point per sampling interval (15 s by default). */
+export const INSIGHTS_REFRESH_MS = 15_000;
+
+export function useWatchlist(networkId: string | undefined, locale: string) {
+  return useQuery({
+    queryKey: queryKeys.watchlist(networkId ?? '', locale),
+    queryFn: ({ signal }) => insights.fetchWatchlist(networkId ?? '', locale, signal),
+    enabled: networkId !== undefined,
+    refetchInterval: INSIGHTS_REFRESH_MS,
+  });
+}
+
+export function useSeries(networkId: string, range: insights.Range, resourceId?: string) {
+  return useQuery({
+    queryKey: queryKeys.series(networkId, range, resourceId),
+    queryFn: ({ signal }) => insights.fetchSeries(networkId, range, resourceId, signal),
+    refetchInterval: INSIGHTS_REFRESH_MS,
+    // Switching ranges keeps the old lines on screen until the new ones arrive.
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useWatchMutations(networkId: string, locale: string) {
+  const client = useQueryClient();
+  const refresh = () => client.invalidateQueries({ queryKey: queryKeys.insights(networkId) });
+  return {
+    watch: useMutation({
+      mutationFn: (resourceId: string) => insights.watch(networkId, resourceId, locale),
+      onSuccess: refresh,
+    }),
+    unwatch: useMutation({ mutationFn: insights.unwatch, onSuccess: refresh }),
+  };
+}
+
+// --- Alerts (spec section 23) ----------------------------------------------------------------------
+
+export const alertKeys = {
+  all: ['alerts'] as const,
+  rules: (networkId: string, locale: string) => ['alerts', 'rules', networkId, locale] as const,
+  events: (networkId: string | null, locale: string) => ['alerts', 'events', networkId, locale] as const,
+  settings: ['alerts', 'settings'] as const,
+};
+
+/** Rule states follow the server's checks (every 15 s by default); live events refresh sooner. */
+export const ALERTS_REFRESH_MS = 30_000;
+
+export function useAlertRules(networkId: string | undefined, locale: string) {
+  return useQuery({
+    queryKey: alertKeys.rules(networkId ?? '', locale),
+    queryFn: ({ signal }) => alerts.fetchRules(networkId ?? '', locale, signal),
+    enabled: networkId !== undefined,
+    refetchInterval: ALERTS_REFRESH_MS,
+  });
+}
+
+export function useAlertEvents(networkId: string | null, locale: string) {
+  return useInfiniteQuery({
+    queryKey: alertKeys.events(networkId, locale),
+    queryFn: ({ pageParam, signal }) => alerts.fetchEvents(networkId, locale, pageParam, signal),
+    initialPageParam: null as number | null,
+    getNextPageParam: (page) => page.nextBefore,
+    refetchInterval: ALERTS_REFRESH_MS,
+  });
+}
+
+export function useAlertRuleMutations(networkId: string, locale: string) {
+  const client = useQueryClient();
+  const refresh = () => void client.invalidateQueries({ queryKey: alertKeys.all });
+  return {
+    create: useMutation({ mutationFn: (input: alerts.RuleInput) => alerts.createRule(networkId, input, locale), onSuccess: refresh }),
+    update: useMutation({
+      mutationFn: ({ id, change }: { id: string; change: Parameters<typeof alerts.updateRule>[1] }) =>
+        alerts.updateRule(id, change, locale),
+      onSuccess: refresh,
+    }),
+    remove: useMutation({ mutationFn: alerts.deleteRule, onSuccess: refresh }),
+  };
+}
+
+export function useAlertSettings() {
+  return useQuery({ queryKey: alertKeys.settings, queryFn: ({ signal }) => alerts.fetchAlertSettings(signal) });
+}
+
+export function useAlertSettingsMutations(locale: string) {
+  const client = useQueryClient();
+  return {
+    save: useMutation({
+      mutationFn: ({ discord, webhook }: { discord: string; webhook: string }) => alerts.saveAlertSettings(discord, webhook, locale),
+      onSuccess: (settings) => client.setQueryData(alertKeys.settings, settings),
+    }),
+    test: useMutation({ mutationFn: alerts.testAlertChannels }),
+  };
+}
+
+// --- Administration and audit log (milestone 6) ---------------------------------------------------
+
+export function useAdminOverview(enabled: boolean) {
+  return useQuery({ queryKey: queryKeys.admin, queryFn: ({ signal }) => admin.fetchAdminOverview(signal), enabled });
+}
+
+export function useBackup() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: admin.createBackup,
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.admin });
+      void client.invalidateQueries({ queryKey: queryKeys.auditLog(null) });
+    },
+  });
+}
+
+export function useAuditLog(networkId: string | null) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.auditLog(networkId),
+    queryFn: ({ pageParam, signal }) => admin.fetchAuditLog(networkId, pageParam, signal),
+    initialPageParam: null as number | null,
+    getNextPageParam: (page) => page.nextBefore,
+  });
 }

@@ -362,6 +362,59 @@ export function renameProvider(networkId: string, providerId: string, name: stri
   return sendNoContent('PATCH', `${networkBase(networkId)}/providers/${encodeURIComponent(providerId)}`, { name });
 }
 
+/** AE2's lock-crafting modes (spec section 15). */
+export const LOCK_MODES = ['NONE', 'LOCK_UNTIL_PULSE', 'LOCK_WHILE_HIGH', 'LOCK_WHILE_LOW', 'LOCK_UNTIL_RESULT'] as const;
+
+export interface ProviderSettings {
+  priority: number;
+  blocking: boolean;
+  lockMode: string;
+  visibleInTerminal: boolean;
+}
+
+export function configureProvider(networkId: string, providerId: string, settings: ProviderSettings): Promise<void> {
+  return sendNoContent('PATCH', `${networkBase(networkId)}/providers/${encodeURIComponent(providerId)}`, settings);
+}
+
+export interface DuplicateEntry {
+  provider: Provider;
+  pattern: StoredPattern;
+}
+
+/**
+ * Patterns in different slots that make the same primary output (spec section 17). Not necessarily a mistake:
+ * duplicates can be deliberate for parallel machines, so they are only shown, highest priority first.
+ * `sameInputs` tells equivalent patterns from alternative recipes.
+ */
+export interface DuplicateGroup {
+  output: PatternStack;
+  entries: DuplicateEntry[];
+  sameInputs: boolean;
+}
+
+export function findDuplicates(providers: readonly Provider[]): DuplicateGroup[] {
+  const byOutput = new Map<string, DuplicateEntry[]>();
+  for (const provider of providers) {
+    for (const pattern of provider.patterns) {
+      const output = pattern.outputs[0];
+      if (!output) continue;
+      const entries = byOutput.get(output.resource.id) ?? [];
+      entries.push({ provider, pattern });
+      byOutput.set(output.resource.id, entries);
+    }
+  }
+  const inputsKey = (pattern: StoredPattern) =>
+    pattern.inputs.map((input) => `${input.resource.id}*${input.amount}`).sort().join('|');
+  return [...byOutput.values()]
+    .filter((entries) => entries.length > 1)
+    .map((entries) => ({
+      output: entries[0]!.pattern.outputs[0]!,
+      entries: [...entries].sort((a, b) => (b.provider.priority ?? 0) - (a.provider.priority ?? 0)),
+      sameInputs: new Set(entries.map((entry) => inputsKey(entry.pattern))).size === 1,
+    }))
+    .sort((a, b) => a.output.resource.name.localeCompare(b.output.resource.name));
+}
+
 /** Text a provider list can be filtered by: its name, type, and machine. */
 export function providerSearchText(provider: Provider): string {
   return [provider.name, provider.customName, provider.kind?.name, provider.machine?.name, provider.kind?.id,

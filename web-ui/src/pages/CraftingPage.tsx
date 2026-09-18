@@ -6,6 +6,7 @@ import { useCraftingMutations, useNetworks, useOrders } from '../api/queries';
 import { CraftDialog } from '../components/crafting/CraftDialog';
 import { useCapability } from '../components/crafting/CraftingBits';
 import { OrderCard } from '../components/crafting/OrderCard';
+import { PresetDialog, SavedOrders, type PresetDraft } from '../components/crafting/SavedOrders';
 import { NetworkPicker } from '../components/network/NetworkPicker';
 import { EmptyNotice, ErrorNotice, FormError, LoadingNotice } from '../components/StateNotice';
 import { useLiveNetwork } from '../hooks/useLiveNetwork';
@@ -44,6 +45,7 @@ function Orders({ networkId }: { networkId: string }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
   const [params, setParams] = useSearchParams();
+  const savedTab = params.get('tab') === 'SAVED';
   const filter: OrderFilter = (ORDER_FILTERS as readonly string[]).includes(params.get('tab') ?? '')
     ? (params.get('tab') as OrderFilter)
     : 'ACTIVE';
@@ -52,6 +54,7 @@ function Orders({ networkId }: { networkId: string }) {
   const mutations = useCraftingMutations(networkId, locale);
   const canCraft = useCapability(networkId, 'SUBMIT_CRAFT');
   const [again, setAgain] = useState<{ order: Order; assetVersion: string } | null>(null);
+  const [preset, setPreset] = useState<{ draft: PresetDraft; assetVersion: string } | null>(null);
 
   const pages = orders.data?.pages ?? [];
   const list = pages.flatMap((page) => page.orders.map((order) => ({ order, assetVersion: page.assetVersion })));
@@ -59,60 +62,76 @@ function Orders({ networkId }: { networkId: string }) {
   return (
     <>
       <div className="tabs" role="tablist">
-        {ORDER_FILTERS.map((name) => (
-          <button
-            key={name}
-            type="button"
-            role="tab"
-            aria-selected={filter === name}
-            className={`tab${filter === name ? ' tab-active' : ''}`}
-            onClick={() => setParams({ tab: name }, { replace: true })}
-          >
-            {t(`crafting.tabs.${name}`)}
-          </button>
-        ))}
+        {[...ORDER_FILTERS, 'SAVED' as const].map((name) => {
+          const selected = name === 'SAVED' ? savedTab : !savedTab && filter === name;
+          return (
+            <button
+              key={name}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              className={`tab${selected ? ' tab-active' : ''}`}
+              onClick={() => setParams({ tab: name }, { replace: true })}
+            >
+              {t(`crafting.tabs.${name}`)}
+            </button>
+          );
+        })}
       </div>
 
-      <FormError error={mutations.cancelOrder.error} />
-
-      {orders.isPending ? (
-        <LoadingNotice />
-      ) : orders.isError ? (
-        <ErrorNotice title={t('crafting.ordersError')} error={orders.error} onRetry={() => void orders.refetch()} />
-      ) : list.length === 0 ? (
-        <EmptyNotice title={t(`crafting.empty.${filter}`)}>{filter === 'ACTIVE' ? t('crafting.emptyHint') : null}</EmptyNotice>
+      {savedTab ? (
+        <SavedOrders networkId={networkId} canCraft={canCraft} />
       ) : (
-        <div className="order-list">
-          {list.map(({ order, assetVersion }) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              assetVersion={assetVersion}
-              cancelling={mutations.cancelOrder.isPending}
-              onCancel={() => mutations.cancelOrder.mutate(order.id)}
-              onCraftAgain={canCraft ? () => setAgain({ order, assetVersion }) : undefined}
+        <>
+          <FormError error={mutations.cancelOrder.error} />
+
+          {orders.isPending ? (
+            <LoadingNotice />
+          ) : orders.isError ? (
+            <ErrorNotice title={t('crafting.ordersError')} error={orders.error} onRetry={() => void orders.refetch()} />
+          ) : list.length === 0 ? (
+            <EmptyNotice title={t(`crafting.empty.${filter}`)}>{filter === 'ACTIVE' ? t('crafting.emptyHint') : null}</EmptyNotice>
+          ) : (
+            <div className="order-list">
+              {list.map(({ order, assetVersion }) => (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  assetVersion={assetVersion}
+                  cancelling={mutations.cancelOrder.isPending}
+                  onCancel={() => mutations.cancelOrder.mutate(order.id)}
+                  onCraftAgain={canCraft ? () => setAgain({ order, assetVersion }) : undefined}
+                  onSavePreset={canCraft ? () => setPreset({
+                    draft: { resource: order.target, amount: order.amount, cpuId: order.cpu?.id ?? null, name: order.target.name, notes: '' },
+                    assetVersion,
+                  }) : undefined}
+                />
+              ))}
+            </div>
+          )}
+
+          {orders.hasNextPage ? (
+            <div className="load-more">
+              <button type="button" className="button" onClick={() => void orders.fetchNextPage()} disabled={orders.isFetchingNextPage}>
+                {orders.isFetchingNextPage ? t('common.loading') : t('crafting.loadMore')}
+              </button>
+            </div>
+          ) : null}
+
+          {again ? (
+            <CraftDialog
+              networkId={networkId}
+              resource={again.order.target}
+              assetVersion={again.assetVersion}
+              initialAmount={again.order.amount}
+              onClose={() => setAgain(null)}
             />
-          ))}
-        </div>
+          ) : null}
+          {preset ? (
+            <PresetDialog networkId={networkId} draft={preset.draft} assetVersion={preset.assetVersion} onClose={() => setPreset(null)} />
+          ) : null}
+        </>
       )}
-
-      {orders.hasNextPage ? (
-        <div className="load-more">
-          <button type="button" className="button" onClick={() => void orders.fetchNextPage()} disabled={orders.isFetchingNextPage}>
-            {orders.isFetchingNextPage ? t('common.loading') : t('crafting.loadMore')}
-          </button>
-        </div>
-      ) : null}
-
-      {again ? (
-        <CraftDialog
-          networkId={networkId}
-          resource={again.order.target}
-          assetVersion={again.assetVersion}
-          initialAmount={again.order.amount}
-          onClose={() => setAgain(null)}
-        />
-      ) : null}
     </>
   );
 }

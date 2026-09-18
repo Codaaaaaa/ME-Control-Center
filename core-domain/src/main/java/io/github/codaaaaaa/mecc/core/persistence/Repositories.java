@@ -1,8 +1,12 @@
 package io.github.codaaaaaa.mecc.core.persistence;
 
+import io.github.codaaaaaa.mecc.core.alerts.AlertRepository;
 import io.github.codaaaaaa.mecc.core.audit.AuditRepository;
 import io.github.codaaaaaa.mecc.core.auth.DeviceRepository;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingOrderRepository;
+import io.github.codaaaaaa.mecc.core.crafting.SavedOrderRepository;
+import io.github.codaaaaaa.mecc.core.insights.SampleRepository;
+import io.github.codaaaaaa.mecc.core.insights.WatchlistRepository;
 import io.github.codaaaaaa.mecc.core.networks.NetworkRepository;
 import io.github.codaaaaaa.mecc.core.patterns.PatternDeploymentRepository;
 import io.github.codaaaaaa.mecc.core.patterns.PatternDraftRepository;
@@ -23,4 +27,12 @@ public interface Repositories {
     PatternDraftRepository patternDrafts();
 
     PatternDeploymentRepository patternDeployments();
+
+    WatchlistRepository watchlist();
+
+    SampleRepository samples();
+
+    SavedOrderRepository savedOrders();
+
+    AlertRepository alerts();
 }

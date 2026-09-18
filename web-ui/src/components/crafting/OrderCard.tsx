@@ -14,12 +14,14 @@ export function OrderCard({
   onCancel,
   cancelling,
   onCraftAgain,
+  onSavePreset,
 }: {
   order: Order;
   assetVersion: string;
   onCancel?: () => void;
   cancelling?: boolean;
   onCraftAgain?: () => void;
+  onSavePreset?: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
@@ -67,6 +69,11 @@ export function OrderCard({
         {onCraftAgain ? (
           <button type="button" className="button button-small" onClick={onCraftAgain}>
             {t('crafting.craftAgain')}
+          </button>
+        ) : null}
+        {onSavePreset ? (
+          <button type="button" className="button button-quiet button-small" onClick={onSavePreset}>
+            {t('crafting.saved.saveAsPreset')}
           </button>
         ) : null}
         {order.cancellable && onCancel ? (

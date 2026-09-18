@@ -6,10 +6,12 @@ import {
   definitionBody,
   editorFromDefinition,
   emptyEditor,
+  findDuplicates,
   hasContent,
   parsePortable,
   portableFileName,
   toPortable,
+  type Provider,
   type Recipe,
 } from './patterns';
 
@@ -128,5 +130,34 @@ describe('live pattern events', () => {
   it('turns pattern.deployed into a provider refresh', () => {
     expect(liveEffects({ type: 'pattern.deployed', timestamp: '', networkId: 'n1', payload: {} }))
       .toEqual([{ kind: 'patterns', networkId: 'n1' }]);
+  });
+});
+
+describe('duplicate pattern analysis', () => {
+  const iron = label('item:minecraft:iron_ingot');
+  const ore = label('item:minecraft:raw_iron');
+  const provider = (id: string, priority: number | null, patterns: Provider['patterns']): Provider => ({
+    id, name: id, icon: null, kind: null, machine: null, customName: null, renamable: true, location: null, online: true,
+    slots: 9, usedSlots: patterns.length, priority, blocking: false, lockMode: 'NONE', visibleInTerminal: true, patterns,
+  });
+  const smelt = (slot: number, inputAmount: number) => ({
+    slot, type: 'PROCESSING' as const, outputs: [{ resource: iron, amount: 1 }], inputs: [{ resource: ore, amount: inputAmount }],
+  });
+
+  it('groups patterns with the same primary output, highest priority first', () => {
+    const groups = findDuplicates([
+      provider('low', -100, [smelt(0, 1)]),
+      provider('high', 100, [smelt(3, 1)]),
+      provider('other', 0, [{ slot: 0, type: 'CRAFTING', outputs: [{ resource: plank, amount: 4 }], inputs: [] }]),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.output.resource.id).toBe(iron.id);
+    expect(groups[0]!.entries.map((entry) => entry.provider.id)).toEqual(['high', 'low']);
+    expect(groups[0]!.sameInputs).toBe(true);
+  });
+
+  it('tells alternative recipes from equivalent patterns', () => {
+    const groups = findDuplicates([provider('a', 0, [smelt(0, 1), smelt(1, 2)])]);
+    expect(groups[0]!.sameInputs).toBe(false);
   });
 });

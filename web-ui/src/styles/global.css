@@ -166,6 +166,11 @@ p {
   color: var(--text-primary);
 }
 
+/* "More" exists for the phone bottom bar only. */
+.nav-more {
+  display: none;
+}
+
 .nav-item.active {
   color: var(--accent-strong);
   background: rgba(47, 212, 200, 0.08);
@@ -441,9 +446,49 @@ p {
 
   .nav-item {
     flex-direction: column;
+    justify-content: center;
     gap: 2px;
     font-size: 11px;
-    padding: 4px 16px;
+    padding: 4px 12px;
+  }
+
+  .nav-secondary {
+    display: none;
+  }
+
+  .nav-more {
+    display: block;
+    position: relative;
+  }
+
+  .nav-more summary {
+    list-style: none;
+    cursor: pointer;
+  }
+
+  .nav-more summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .nav-more-menu {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 10px);
+    min-width: 180px;
+    display: grid;
+    gap: 4px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-small);
+    background: rgba(7, 11, 18, 0.98);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .nav-more-menu .nav-item {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 10px;
+    font-size: 14px;
   }
 
   .content {

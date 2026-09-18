@@ -47,6 +47,16 @@ public final class ResourceIndex {
         return descriptors[index];
     }
 
+    /** Position of a resource, or -1. A linear scan. */
+    public int indexOf(ResourceId id) {
+        for (int i = 0; i < descriptors.length; i++) {
+            if (descriptors[i].id().equals(id)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     public long amount(int index) {
         return amounts[index];
     }

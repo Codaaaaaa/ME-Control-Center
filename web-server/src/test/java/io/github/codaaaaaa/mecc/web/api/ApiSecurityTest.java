@@ -47,6 +47,7 @@ class ApiSecurityTest {
         ApiRoutes routes = ApiRoutes.builder()
                 .get("/api/v1/private", request -> CompletableFuture.completedFuture(
                         new Echo(request.session().user().playerName())))
+                .post("/api/v1/private", request -> CompletableFuture.completedFuture(request.body(Echo.class)))
                 .publicPost("/api/v1/echo", request -> {
                     lastClient.set(request.client());
                     return CompletableFuture.completedFuture(request.body(Echo.class));
@@ -55,7 +56,7 @@ class ApiSecurityTest {
                 .publicGet("/api/v1/items/special", request -> CompletableFuture.completedFuture(new Echo("literal wins")))
                 .build();
         ApiSecurity security = new ApiSecurity(List.of(IpRange.parse("127.0.0.1").orElseThrow()), false,
-                Set.of("https://mecc.example.org"), 1024);
+                Set.of("https://mecc.example.org"), 1024, 60, 10);
         server = new WebServer("127.0.0.1", 0, 8, routes, StaticAssets.empty(), security, sessions);
         server.start();
     }
@@ -110,6 +111,28 @@ class ApiSecurityTest {
         // The test client connects from 127.0.0.1, which is configured as a trusted proxy.
         send(post("/api/v1/echo", "{\"text\":\"x\"}").header("X-Forwarded-For", "203.0.113.9, 127.0.0.1"));
         assertEquals("203.0.113.9", lastClient.get().address());
+    }
+
+    @Test
+    void limitsRequestsPerAddressAndChangesPerPlayer() throws Exception {
+        for (int i = 0; i < 60; i++) {
+            assertEquals(200, send(get("/api/v1/items/a").header("X-Forwarded-For", "203.0.113.1")).statusCode());
+        }
+        HttpResponse<String> limited = send(get("/api/v1/items/a").header("X-Forwarded-For", "203.0.113.1"));
+        assertEquals(429, limited.statusCode());
+        assertTrue(limited.body().contains("RATE_LIMITED"), limited.body());
+        assertEquals(200, send(get("/api/v1/items/a").header("X-Forwarded-For", "203.0.113.2")).statusCode(),
+                "other addresses are unaffected");
+
+        // Changes count per player, whichever address they come from.
+        for (int i = 0; i < 10; i++) {
+            assertEquals(200, send(post("/api/v1/private", "{\"text\":\"x\"}").header("Authorization", "Bearer " + TOKEN)
+                    .header("X-Forwarded-For", "198.51.100." + i)).statusCode());
+        }
+        assertEquals(429, send(post("/api/v1/private", "{\"text\":\"x\"}").header("Authorization", "Bearer " + TOKEN)
+                .header("X-Forwarded-For", "198.51.100.99")).statusCode());
+        assertEquals(200, send(get("/api/v1/private").header("Authorization", "Bearer " + TOKEN)
+                .header("X-Forwarded-For", "198.51.100.99")).statusCode(), "reading is still allowed");
     }
 
     @Test

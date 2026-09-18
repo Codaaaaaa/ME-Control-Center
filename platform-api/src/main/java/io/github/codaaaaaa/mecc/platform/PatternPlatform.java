@@ -4,6 +4,7 @@ import io.github.codaaaaaa.mecc.core.networks.BlockLocation;
 import io.github.codaaaaaa.mecc.core.patterns.PatternDefinition;
 import io.github.codaaaaaa.mecc.core.patterns.PatternIssue;
 import io.github.codaaaaaa.mecc.core.patterns.PatternType;
+import io.github.codaaaaaa.mecc.core.patterns.ProviderSettings;
 import io.github.codaaaaaa.mecc.core.resources.ResourceDescriptor;
 import io.github.codaaaaaa.mecc.core.resources.ResourceText;
 import io.github.codaaaaaa.mecc.core.users.PlayerProfile;
@@ -83,14 +84,22 @@ public interface PatternPlatform {
      * removes the custom name.
      */
     @ServerThreadOnly
-    RenameOutcome rename(String gridKey, String providerId, String name);
+    ProviderChange rename(String gridKey, String providerId, String name);
 
-    enum RenameOutcome {
-        RENAMED,
+    enum ProviderChange {
+        CHANGED,
         NOT_FOUND,
-        /** This container type has no name that can be changed. */
-        NOT_RENAMABLE
+        /** This container type has no such name or setting (e.g. another mod's pattern buffer). */
+        NOT_SUPPORTED
     }
+
+    /**
+     * Changes a provider's settings as its in-game screen would (spec section 15). Each {@code null} field is left
+     * as it is. Returns {@link ProviderChange#NOT_SUPPORTED} for containers without these settings (other mods'
+     * pattern buffers).
+     */
+    @ServerThreadOnly
+    ProviderChange configure(String gridKey, String providerId, ProviderSettings settings);
 
     /**
      * Anything that holds patterns for the network: AE2 pattern providers and the pattern buffers other mods add for

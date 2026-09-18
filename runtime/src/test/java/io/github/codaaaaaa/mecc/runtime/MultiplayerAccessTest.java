@@ -184,6 +184,66 @@ class MultiplayerAccessTest {
     }
 
     @Test
+    void auditLogIsVisibleToOwnersAndAdminsOnly() throws Exception {
+        platform.addResource("item", "minecraft", "iron_ingot", 5, false);
+        String steveAnchor = platform.addGrid("grid-steve", steve, 10).key();
+        platform.opLevels.put(admin.uuid(), 4);
+        Browser steveBrowser = new Browser();
+        Browser alexBrowser = new Browser();
+        Browser adminBrowser = new Browser();
+        steveBrowser.post("/api/v1/auth/pair", Map.of("key", pairingKey(steve)));
+        alexBrowser.post("/api/v1/auth/pair", Map.of("key", pairingKey(alex)));
+        adminBrowser.post("/api/v1/auth/pair", Map.of("key", pairingKey(admin)));
+        String networkId = json(steveBrowser.post("/api/v1/networks", Map.of("candidateKey", steveAnchor, "displayName", "Base")))
+                .path("network").path("id").asText();
+        String audit = "/api/v1/networks/" + networkId + "/audit";
+
+        assertEquals("NETWORK_NOT_FOUND", errorCode(alexBrowser.get(audit)));
+        steveBrowser.post("/api/v1/networks/" + networkId + "/members", Map.of("player", "Alex", "role", "MANAGER"));
+        assertEquals("PERMISSION_DENIED", errorCode(alexBrowser.get(audit)), "Owner only");
+
+        JsonNode log = json(steveBrowser.get(audit)).path("entries");
+        assertEquals(List.of("NETWORK_SHARE", "NETWORK_CLAIM"), List.of(log.get(0).path("action").asText(),
+                log.get(1).path("action").asText()));
+        assertEquals("Steve", log.get(0).path("actor").path("playerName").asText());
+        assertEquals("Alex", log.get(0).path("targetPlayer").path("playerName").asText());
+        assertEquals("Base", log.get(0).path("networkName").asText());
+
+        // Server administration: admins only.
+        assertEquals("PERMISSION_DENIED", errorCode(steveBrowser.get("/api/v1/admin")));
+        assertEquals("PERMISSION_DENIED", errorCode(steveBrowser.get("/api/v1/admin/audit")));
+        assertEquals("PERMISSION_DENIED", errorCode(steveBrowser.post("/api/v1/admin/backups", Map.of())));
+
+        JsonNode overview = json(adminBrowser.get("/api/v1/admin"));
+        assertEquals(port, overview.path("config").path("web").path("port").asInt());
+        assertEquals(1200, overview.path("config").path("security").path("rateLimitRequestsPerMinute").asInt());
+        assertTrue(overview.path("config").path("security").path("trustedProxyRanges").isMissingNode());
+        assertTrue(overview.path("database").path("schemaVersion").asInt() > 0);
+        assertEquals(0, overview.path("database").path("backups").size());
+
+        HttpResponse<String> backup = adminBrowser.post("/api/v1/admin/backups", Map.of());
+        assertEquals(201, backup.statusCode(), backup.body());
+        String backupName = json(backup).path("name").asText();
+        assertTrue(Files.isRegularFile(platform.dataDirectory().resolve("backups").resolve(backupName)));
+        assertEquals(backupName, json(adminBrowser.get("/api/v1/admin")).path("database").path("backups").get(0)
+                .path("name").asText());
+
+        JsonNode first = json(adminBrowser.get("/api/v1/admin/audit?limit=1"));
+        assertEquals("DATABASE_BACKUP", first.path("entries").get(0).path("action").asText());
+        JsonNode older = json(adminBrowser.get("/api/v1/admin/audit?limit=10&before=" + first.path("nextBefore").asLong()));
+        assertTrue(older.path("nextBefore").isNull());
+        assertTrue(older.path("entries").size() >= 3, "pairings, claim, share: " + older);
+        assertEquals(200, adminBrowser.get(audit).statusCode(), "admin override reads any network's log");
+
+        // A removed member's watchlist on the network goes with the membership.
+        assertEquals(201, alexBrowser.post("/api/v1/watchlist",
+                Map.of("networkId", networkId, "resourceId", "item:minecraft:iron_ingot")).statusCode());
+        assertEquals(1, runtime.insightsSampler().sampleOnce().get(5, TimeUnit.SECONDS));
+        assertEquals(204, steveBrowser.delete("/api/v1/networks/" + networkId + "/members/" + alex.uuid()).statusCode());
+        assertEquals(0, runtime.insightsSampler().sampleOnce().get(5, TimeUnit.SECONDS));
+    }
+
+    @Test
     void conflictingIdentityIsReportedAndNeverMerged() throws Exception {
         platform.addGrid("grid-steve", steve, 10);
         platform.addGrid("grid-alex", alex, 500);
