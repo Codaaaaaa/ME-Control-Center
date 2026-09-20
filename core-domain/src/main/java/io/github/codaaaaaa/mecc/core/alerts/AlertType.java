@@ -24,7 +24,12 @@ public enum AlertType {
     /** One of the rule owner's crafting orders failed or was lost; optionally only for one resource. */
     CRAFT_FAILED(false, false, Threshold.NONE),
     /** One of the rule owner's running orders made no progress for the threshold in minutes. */
-    CRAFT_STALLED(false, false, Threshold.MINUTES);
+    CRAFT_STALLED(false, false, Threshold.MINUTES),
+    /**
+     * A machine a crafting job waits for holds its inputs (or refuses them) and has not changed for the threshold in
+     * minutes; optionally only machines of one kind (the resource is the machine block).
+     */
+    MACHINE_STUCK(false, false, Threshold.MINUTES);
 
     /** What a rule's threshold means. */
     public enum Threshold {
@@ -65,7 +70,10 @@ public enum AlertType {
         return this == RESOURCE_DROP || this == RESOURCE_RISE;
     }
 
-    /** Craft rules may name a resource to narrow them down; condition rules take one only when they need it. */
+    /**
+     * Craft and machine rules may name a resource to narrow them down; condition rules take one only when they need
+     * it.
+     */
     public boolean allowsResource() {
         return needsResource || !condition;
     }

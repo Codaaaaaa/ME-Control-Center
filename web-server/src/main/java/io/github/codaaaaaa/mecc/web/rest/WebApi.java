@@ -6,14 +6,17 @@ import io.github.codaaaaaa.mecc.core.alerts.AlertType;
 import io.github.codaaaaaa.mecc.core.assets.IconService;
 import io.github.codaaaaaa.mecc.core.auth.AuthService;
 import io.github.codaaaaaa.mecc.core.auth.AuthViews.DeviceView;
+import io.github.codaaaaaa.mecc.core.automation.RestockService;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingService;
 import io.github.codaaaaaa.mecc.core.crafting.OrderFilter;
 import io.github.codaaaaaa.mecc.core.crafting.OrderSource;
 import io.github.codaaaaaa.mecc.core.crafting.SavedOrderService;
 import io.github.codaaaaaa.mecc.core.error.ErrorCode;
+import io.github.codaaaaaa.mecc.core.explorer.ExplorerService;
 import io.github.codaaaaaa.mecc.core.error.MeccException;
 import io.github.codaaaaaa.mecc.core.insights.InsightsRange;
 import io.github.codaaaaaa.mecc.core.insights.InsightsService;
+import io.github.codaaaaaa.mecc.core.machines.MachineService;
 import io.github.codaaaaaa.mecc.core.networks.NetworkService;
 import io.github.codaaaaaa.mecc.core.networks.NetworkViews.CandidateView;
 import io.github.codaaaaaa.mecc.core.networks.NetworkViews.MemberView;
@@ -57,7 +60,8 @@ public final class WebApi {
     public record Services(StatusService status, AuthService auth, NetworkService networks, ResourceService resources,
                            IconService icons, CraftingService crafting, PatternService patterns,
                            InsightsService insights, AdminService admin, SavedOrderService savedOrders,
-                           AlertService alerts) {
+                           AlertService alerts, MachineService machines, RestockService restock,
+                           ExplorerService explorer) {
         public Services {
             Objects.requireNonNull(status, "status");
             Objects.requireNonNull(auth, "auth");
@@ -70,6 +74,9 @@ public final class WebApi {
             Objects.requireNonNull(admin, "admin");
             Objects.requireNonNull(savedOrders, "savedOrders");
             Objects.requireNonNull(alerts, "alerts");
+            Objects.requireNonNull(machines, "machines");
+            Objects.requireNonNull(restock, "restock");
+            Objects.requireNonNull(explorer, "explorer");
         }
     }
 
@@ -127,6 +134,11 @@ public final class WebApi {
                        Integer cooldownMinutes, Boolean enabled, String locale) {
     }
 
+    /** Every field is optional on update; {@code resourceId} is required when a rule is created. */
+    record RestockRequest(String resourceId, Long minimum, Long restockTo, String cpuId, Integer cooldownMinutes,
+                          Boolean enabled, String locale) {
+    }
+
     /** Every field is optional; only the given ones change. */
     record ProviderRequest(String name, Integer priority, Boolean blocking, String lockMode, Boolean visibleInTerminal) {
     }
@@ -155,6 +167,7 @@ public final class WebApi {
         InsightsService insights = services.insights();
         AdminService admin = services.admin();
         SavedOrderService savedOrders = services.savedOrders();
+        RestockService restock = services.restock();
         AlertService alerts = services.alerts();
 
         return ApiRoutes.builder()
@@ -222,6 +235,10 @@ public final class WebApi {
                 // Crafting and CPUs (spec sections 9-12).
                 .get(V1 + "/networks/{networkId}/crafting/cpus", request -> crafting.cpus(request.session(),
                         networkId(request), locale(request)))
+                .get(V1 + "/networks/{networkId}/crafting/cpus/{cpuId}/tree", request -> crafting.jobTree(
+                        request.session(), networkId(request), request.pathParameter("cpuId"), locale(request)))
+                .get(V1 + "/networks/{networkId}/machines", request -> services.machines().machines(request.session(),
+                        networkId(request), locale(request)))
                 .post(V1 + "/networks/{networkId}/crafting/cpus/{cpuId}/cancel", request -> crafting.cancelCpuJob(
                                 request.session(), networkId(request), request.pathParameter("cpuId"),
                                 request.body(CpuCancelRequest.class).jobId())
@@ -270,6 +287,39 @@ public final class WebApi {
                 .delete(V1 + "/networks/{networkId}/crafting/saved-orders/{savedOrderId}", request -> savedOrders.delete(
                                 request.session(), networkId(request), request.uuidParameter("savedOrderId", ErrorCode.NOT_FOUND))
                         .thenApply(ignored -> ApiResponse.noContent()))
+
+                // Auto Restock (spec section 25): network-wide Keep Stock rules; Managers only.
+                .get(V1 + "/networks/{networkId}/automation/restock", request -> restock.rules(request.session(),
+                        networkId(request), locale(request)))
+                .post(V1 + "/networks/{networkId}/automation/restock", request -> {
+                    RestockRequest body = request.body(RestockRequest.class);
+                    return restock.createRule(request.session(), networkId(request), restockInput(body),
+                            locale(body.locale())).thenApply(ApiResponse::created);
+                })
+                .patch(V1 + "/networks/{networkId}/automation/restock/{ruleId}", request -> {
+                    RestockRequest body = request.body(RestockRequest.class);
+                    return restock.updateRule(request.session(), networkId(request),
+                            request.uuidParameter("ruleId", ErrorCode.NOT_FOUND), restockInput(body),
+                            locale(body.locale()));
+                })
+                .delete(V1 + "/networks/{networkId}/automation/restock/{ruleId}", request -> restock.deleteRule(
+                                request.session(), networkId(request), request.uuidParameter("ruleId", ErrorCode.NOT_FOUND))
+                        .thenApply(ignored -> ApiResponse.noContent()))
+                .post(V1 + "/networks/{networkId}/automation/stop", request -> restock.stopAll(request.session(),
+                        networkId(request), locale(request)))
+
+                // In-game ME Requesters (the optional ME Requester mod): read by anyone who may see the network,
+                // emptied by Managers, exactly like the rules above.
+                .get(V1 + "/networks/{networkId}/automation/requesters", request -> restock.requesters(request.session(),
+                        networkId(request), locale(request)))
+                .delete(V1 + "/networks/{networkId}/automation/requesters/{requesterId}/{slot}",
+                        request -> restock.deleteRequest(request.session(), networkId(request),
+                                        request.pathParameter("requesterId"), slot(request))
+                                .thenApply(ignored -> ApiResponse.noContent()))
+
+                // Network Explorer (spec section 26).
+                .get(V1 + "/networks/{networkId}/explorer", request -> services.explorer().map(request.session(),
+                        networkId(request), locale(request)))
 
                 // Pattern Studio (spec sections 13-17). Drafts are personal; network routes check the role.
                 .get(V1 + "/patterns/drafts", request -> patterns.drafts(request.session(), locale(request)))
@@ -401,6 +451,22 @@ public final class WebApi {
 
     private static SavedOrderService.SavedOrderInput savedOrderInput(SavedOrderRequest body) {
         return new SavedOrderService.SavedOrderInput(body.name(), body.resourceId(), body.amount(), body.cpuId(), body.notes());
+    }
+
+    private static int slot(ApiRequest request) {
+        try {
+            return Integer.parseInt(request.pathParameter("slot"));
+        } catch (NumberFormatException e) {
+            throw new MeccException(ErrorCode.NOT_FOUND, "No such ME Requester request");
+        }
+    }
+
+    private static RestockService.RuleInput restockInput(RestockRequest body) {
+        if (body == null) {
+            throw MeccException.validation("minimum", "minimum is required");
+        }
+        return new RestockService.RuleInput(body.resourceId(), body.minimum(), body.restockTo(), body.cpuId(),
+                body.cooldownMinutes(), body.enabled());
     }
 
     private static AlertService.RuleInput ruleInput(RuleRequest body) {

@@ -5,9 +5,12 @@ import { queryKeys } from './api/queries';
 import { AuthGate } from './components/AuthGate';
 import { Shell } from './components/Shell';
 import { AlertsPage } from './pages/AlertsPage';
+import { AutomationPage } from './pages/AutomationPage';
 import { CpusPage } from './pages/CpusPage';
 import { CraftingPage } from './pages/CraftingPage';
+import { ExplorerPage } from './pages/ExplorerPage';
 import { InsightsPage } from './pages/InsightsPage';
+import { MachinesPage } from './pages/MachinesPage';
 import { NetworkSettingsPage } from './pages/NetworkSettingsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { OverviewPage } from './pages/OverviewPage';
@@ -48,6 +51,9 @@ export function App() {
               <Route path="patterns" element={<PatternsPage />} />
               <Route path="insights" element={<InsightsPage />} />
               <Route path="alerts" element={<AlertsPage />} />
+              <Route path="machines" element={<MachinesPage />} />
+              <Route path="automation" element={<AutomationPage />} />
+              <Route path="explorer" element={<ExplorerPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="networks/:networkId" element={<NetworkSettingsPage />} />
               <Route path="*" element={<NotFoundPage />} />

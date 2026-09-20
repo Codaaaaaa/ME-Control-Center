@@ -14,7 +14,8 @@ public record MeccConfig(
         CraftingConfig crafting,
         PatternsConfig patterns,
         AnalyticsConfig analytics,
-        AlertsConfig alerts) {
+        AlertsConfig alerts,
+        AutomationConfig automation) {
 
     public MeccConfig {
         Objects.requireNonNull(web, "web");
@@ -26,12 +27,13 @@ public record MeccConfig(
         Objects.requireNonNull(patterns, "patterns");
         Objects.requireNonNull(analytics, "analytics");
         Objects.requireNonNull(alerts, "alerts");
+        Objects.requireNonNull(automation, "automation");
     }
 
     public static MeccConfig defaults() {
         return new MeccConfig(WebConfig.defaults(), SecurityConfig.defaults(), NetworksConfig.defaults(),
                 ResourcesConfig.defaults(), AssetsConfig.defaults(), CraftingConfig.defaults(), PatternsConfig.defaults(),
-                AnalyticsConfig.defaults(), AlertsConfig.defaults());
+                AnalyticsConfig.defaults(), AlertsConfig.defaults(), AutomationConfig.defaults());
     }
 
     /** Returns human-readable problems; empty when valid. */
@@ -45,6 +47,7 @@ public record MeccConfig(
         problems.addAll(patterns.validate());
         problems.addAll(analytics.validate());
         problems.addAll(alerts.validate());
+        problems.addAll(automation.validate());
         return problems;
     }
 }

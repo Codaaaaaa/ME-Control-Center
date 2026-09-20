@@ -6,15 +6,22 @@ import io.github.codaaaaaa.mecc.core.alerts.AlertState;
 import io.github.codaaaaaa.mecc.core.alerts.AlertType;
 import io.github.codaaaaaa.mecc.core.config.AlertsConfig;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingOrder;
-import io.github.codaaaaaa.mecc.core.crafting.OrderState;
+import io.github.codaaaaaa.mecc.core.crafting.OrderTarget;
 import io.github.codaaaaaa.mecc.core.live.LiveEvent;
 import io.github.codaaaaaa.mecc.core.networks.GridStatus;
 import io.github.codaaaaaa.mecc.core.networks.NetworkReconciler.Resolution;
 import io.github.codaaaaaa.mecc.core.networks.NetworkRecordStatus;
 import io.github.codaaaaaa.mecc.core.persistence.DataStore;
 import io.github.codaaaaaa.mecc.core.resources.ResourceIndex;
+import io.github.codaaaaaa.mecc.platform.CraftingPlatform.CpuCapture;
+import io.github.codaaaaaa.mecc.platform.CraftingPlatform.CpuState;
+import io.github.codaaaaaa.mecc.platform.CraftingPlatform.JobState;
+import io.github.codaaaaaa.mecc.runtime.crafting.CpuSnapshots;
 import io.github.codaaaaaa.mecc.runtime.crafting.CraftingTracker;
+import io.github.codaaaaaa.mecc.runtime.crafting.ResourceLabels;
+import io.github.codaaaaaa.mecc.runtime.machines.DefaultMachineService;
 import io.github.codaaaaaa.mecc.runtime.networks.NetworkDirectory;
+import io.github.codaaaaaa.mecc.runtime.networks.NetworkGuard;
 import io.github.codaaaaaa.mecc.runtime.resources.ResourceSnapshots;
 import java.time.Clock;
 import java.time.Duration;
@@ -35,7 +42,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,29 +64,39 @@ public final class AlertMonitor {
 
     private final DataStore store;
     private final NetworkDirectory directory;
+    private final NetworkGuard guard;
     private final ResourceSnapshots snapshots;
-    private final Supplier<List<CraftingTracker.Tracked>> activeOrders;
+    private final CpuSnapshots cpus;
+    private final CraftingTracker tracker;
+    private final DefaultMachineService machines;
+    private final ResourceLabels labels;
     private final AlertNotifier notifier;
     private final AlertsConfig config;
     private final Clock clock;
     private final AtomicBoolean checking = new AtomicBoolean();
     /** Per percentage-change rule: {@code [epochMillis, amount]} readings, oldest first. Networks are checked in parallel. */
     private final Map<UUID, Deque<long[]>> history = new ConcurrentHashMap<>();
-    /** Per running order: its last progress and since when it has been that. */
-    private final Map<UUID, Progress> progress = new HashMap<>();
-    /** {@code ruleId/orderId} of stalls that were announced and not yet resolved. */
-    private final Set<String> stalled = new HashSet<>();
+    /** Per running job ({@link Subject#key()}): its last progress and since when it has been that. */
+    private final Map<String, Progress> progress = new HashMap<>();
+    /** {@code ruleId/subjectKey} of stalled jobs that were announced and not yet resolved. */
+    private final Set<String> stalledJobs = new HashSet<>();
+    /** {@code ruleId/subjectKey} of stuck machines that were announced and not yet resolved. */
+    private final Set<String> stuckMachines = new HashSet<>();
 
     private record Progress(double value, Instant since) {
     }
 
-    public AlertMonitor(DataStore store, NetworkDirectory directory, ResourceSnapshots snapshots,
-                        Supplier<List<CraftingTracker.Tracked>> activeOrders, AlertNotifier notifier, AlertsConfig config,
-                        Clock clock) {
+    public AlertMonitor(DataStore store, NetworkDirectory directory, NetworkGuard guard, ResourceSnapshots snapshots,
+                        CpuSnapshots cpus, CraftingTracker tracker, DefaultMachineService machines, ResourceLabels labels,
+                        AlertNotifier notifier, AlertsConfig config, Clock clock) {
         this.store = store;
         this.directory = directory;
+        this.guard = guard;
         this.snapshots = snapshots;
-        this.activeOrders = activeOrders;
+        this.cpus = cpus;
+        this.tracker = tracker;
+        this.machines = machines;
+        this.labels = labels;
         this.notifier = notifier;
         this.config = config;
         this.clock = clock;
@@ -121,10 +137,14 @@ public final class AlertMonitor {
                     List<CompletableFuture<List<Transition>>> checks = new ArrayList<>();
                     byNetwork.forEach((networkId, networkRules) -> checks.add(facts(networkId, networkRules)
                             .thenApply(facts -> transitions(networkRules, facts, baselines(networkRules, facts, now), now))));
-                    List<Transition> stalls = stalls(rules.stream()
-                            .filter(rule -> rule.type() == AlertType.CRAFT_STALLED).toList(), now);
+                    List<AlertRule> stallRules = ofType(rules, AlertType.CRAFT_STALLED);
+                    checks.add(jobs(networksOf(stallRules), now)
+                            .thenApply(jobs -> episodes(stallRules, jobs, stalledJobs, now)));
+                    List<AlertRule> machineRules = ofType(rules, AlertType.MACHINE_STUCK);
+                    checks.add(machines(networksOf(machineRules))
+                            .thenApply(stuck -> episodes(machineRules, stuck, stuckMachines, now)));
                     return CompletableFuture.allOf(checks.toArray(CompletableFuture[]::new)).thenApply(ignored -> {
-                        List<Transition> all = new ArrayList<>(stalls);
+                        List<Transition> all = new ArrayList<>();
                         checks.forEach(check -> all.addAll(check.join()));
                         return all;
                     });
@@ -222,7 +242,7 @@ public final class AlertMonitor {
                     ? Reading.UNKNOWN
                     : new Reading(facts.energyPercent() < rule.threshold(), (long) Math.floor(facts.energyPercent()));
             case CPU_SATURATED -> new Reading(facts.cpusSaturated(), null);
-            case CRAFT_COMPLETED, CRAFT_FAILED, CRAFT_STALLED -> Reading.UNKNOWN;
+            case CRAFT_COMPLETED, CRAFT_FAILED, CRAFT_STALLED, MACHINE_STUCK -> Reading.UNKNOWN;
         };
     }
 
@@ -250,68 +270,130 @@ public final class AlertMonitor {
         return transitions;
     }
 
-    /**
-     * Stall rules (spec section 23, "craft stalled/no progress"): a running order of the rule's owner whose progress has
-     * not moved for the threshold in minutes fires once, and resolves when it moves again. Only orders whose job is
-     * visible with a known progress are judged. A rule is firing while any of its orders is stalled.
-     */
-    List<Transition> stalls(List<AlertRule> rules, Instant now) {
-        Map<UUID, CraftingTracker.Tracked> running = new HashMap<>();
-        for (CraftingTracker.Tracked tracked : activeOrders.get()) {
-            if (tracked.order().state() == OrderState.RUNNING) {
-                running.put(tracked.order().id(), tracked);
-            }
-        }
-        progress.keySet().retainAll(running.keySet());
-        stalled.removeIf(key -> !running.containsKey(UUID.fromString(key.substring(key.indexOf('/') + 1))));
+    private static List<AlertRule> ofType(List<AlertRule> rules, AlertType type) {
+        return rules.stream().filter(rule -> rule.type() == type).toList();
+    }
 
-        Set<UUID> moved = new HashSet<>();
-        for (CraftingTracker.Tracked tracked : running.values()) {
-            Double value = tracked.observed() && tracked.job() != null ? tracked.job().progress() : null;
-            if (value == null) {
-                continue;
-            }
-            Progress last = progress.get(tracked.order().id());
-            if (last == null || last.value() != value) {
-                progress.put(tracked.order().id(), new Progress(value, now));
-                if (last != null) {
-                    moved.add(tracked.order().id());
-                }
-            }
+    private static Set<UUID> networksOf(List<AlertRule> rules) {
+        Set<UUID> networks = new HashSet<>();
+        rules.forEach(rule -> networks.add(rule.networkId()));
+        return networks;
+    }
+
+    /**
+     * Something that can get stuck: a running crafting job or a machine.
+     *
+     * @param key            unique across networks
+     * @param owner          the player it belongs to (a job's requester), or {@code null} for anyone on the network
+     * @param target         what it makes, or the machine block; {@code null} when unknown
+     * @param unchangedSince since when it has not moved while something is expected of it; {@code null} when it is fine
+     */
+    record Subject(String key, UUID networkId, UUID owner, OrderTarget target, Long amount, UUID orderId,
+                   Instant unchangedSince) {
+    }
+
+    /**
+     * Every running job with a known progress on the given networks, including jobs started in game: their owner is
+     * the order's creator, or the player the crafting system recorded as requester.
+     */
+    private CompletableFuture<List<Subject>> jobs(Set<UUID> networkIds, Instant now) {
+        Map<UUID, CompletableFuture<CpuCapture>> reads = new HashMap<>();
+        for (UUID networkId : networkIds) {
+            guard.onlineGridKey(networkId).ifPresent(gridKey ->
+                    reads.put(networkId, cpus.latest(networkId, gridKey).exceptionally(error -> null)));
         }
+        return CompletableFuture.allOf(reads.values().toArray(CompletableFuture[]::new)).thenApply(ignored -> {
+            List<Subject> subjects = new ArrayList<>();
+            Set<String> seen = new HashSet<>();
+            reads.forEach((networkId, read) -> {
+                CpuCapture capture = read.join();
+                if (capture == null) {
+                    return;
+                }
+                for (CpuState cpu : capture.cpus()) {
+                    JobState job = cpu.job();
+                    if (job == null || job.progress() == null) {
+                        continue;
+                    }
+                    String key = networkId + "/" + (job.jobId() != null ? job.jobId() : cpu.id() + ":" + job.output().id());
+                    seen.add(key);
+                    Progress last = progress.get(key);
+                    if (last == null || last.value() != job.progress()) {
+                        progress.put(key, new Progress(job.progress(), now));
+                    }
+                    var order = tracker.byJob(networkId, cpu.id(), job);
+                    subjects.add(new Subject(key, networkId,
+                            order.map(tracked -> tracked.order().creatorUuid()).orElse(job.requesterUuid()),
+                            labels.target(job.output()), job.amount(), order.map(tracked -> tracked.order().id()).orElse(null),
+                            progress.get(key).since()));
+                }
+            });
+            // Jobs that ended are forgotten; jobs on networks that could not be read keep their history.
+            progress.keySet().removeIf(key -> reads.containsKey(UUID.fromString(key.substring(0, key.indexOf('/'))))
+                    && !seen.contains(key));
+            return subjects;
+        });
+    }
+
+    /** Every machine on the given networks, stuck since when if something is expected of it. */
+    private CompletableFuture<List<Subject>> machines(Set<UUID> networkIds) {
+        List<CompletableFuture<List<Subject>>> reads = new ArrayList<>();
+        for (UUID networkId : networkIds) {
+            guard.onlineGridKey(networkId).ifPresent(gridKey -> reads.add(machines.latest(networkId, gridKey)
+                    .thenApply(snapshot -> snapshot.machines().stream().map(observation -> new Subject(
+                            networkId + "/" + observation.state().id(), networkId, null,
+                            observation.state().block() == null ? null : labels.target(observation.state().block()),
+                            null, null, observation.stuckSince())).toList())
+                    .exceptionally(error -> List.of())));
+        }
+        return CompletableFuture.allOf(reads.toArray(CompletableFuture[]::new)).thenApply(ignored ->
+                reads.stream().flatMap(read -> read.join().stream()).toList());
+    }
+
+    /**
+     * Stall and machine rules (spec section 23): each subject that has not moved for the rule's threshold in minutes is
+     * announced once, and resolved when it moves again. Stall rules only cover their owner's jobs; both may be narrowed
+     * to one resource. A rule is firing while any of its subjects is stuck.
+     *
+     * @param announced {@code ruleId/subjectKey} of the rule type's announced, unresolved episodes
+     */
+    static List<Transition> episodes(List<AlertRule> rules, List<Subject> subjects, Set<String> announced, Instant now) {
+        Set<String> current = new HashSet<>();
+        subjects.forEach(subject -> current.add(subject.key()));
+        announced.removeIf(key -> !current.contains(key.substring(key.indexOf('/') + 1)));
 
         List<Transition> transitions = new ArrayList<>();
         for (AlertRule rule : rules) {
             boolean wasFiring = rule.state() != AlertState.OK;
             Instant notifiedAt = rule.notifiedAt();
             boolean reported = false;
-            for (CraftingTracker.Tracked tracked : running.values()) {
-                CraftingOrder order = tracked.order();
-                Progress since = progress.get(order.id());
-                if (since == null || !order.networkId().equals(rule.networkId())
-                        || !Objects.equals(order.creatorUuid(), rule.playerUuid())
-                        || (rule.resource() != null && !rule.resource().resourceId().equals(order.target().resourceId()))) {
+            for (Subject subject : subjects) {
+                if (!subject.networkId().equals(rule.networkId())
+                        || (rule.type() == AlertType.CRAFT_STALLED && !Objects.equals(subject.owner(), rule.playerUuid()))
+                        || (rule.resource() != null && (subject.target() == null
+                                || !rule.resource().resourceId().equals(subject.target().resourceId())))) {
                     continue;
                 }
-                String key = rule.id() + "/" + order.id();
+                boolean stuck = subject.unchangedSince() != null && rule.threshold() != null
+                        && !subject.unchangedSince().plusSeconds(rule.threshold() * 60).isAfter(now);
+                String key = rule.id() + "/" + subject.key();
                 AlertEvent.Kind kind = null;
-                if (moved.contains(order.id()) && stalled.remove(key)) {
-                    kind = AlertEvent.Kind.RESOLVED;
-                } else if (!stalled.contains(key) && !since.since().plusSeconds(rule.threshold() * 60).isAfter(now)) {
-                    stalled.add(key);
+                if (stuck && announced.add(key)) {
                     kind = AlertEvent.Kind.TRIGGERED;
                     notifiedAt = now;
+                } else if (!stuck && announced.remove(key)) {
+                    kind = AlertEvent.Kind.RESOLVED;
                 }
                 if (kind != null) {
                     reported = true;
                     transitions.add(new Transition(rule, AlertState.OK, notifiedAt, new AlertEvent(0, rule.id(),
-                            rule.playerUuid(), rule.networkId(), rule.type(), kind, now, order.target(), order.amount(),
-                            rule.threshold(), order.id())));
+                            rule.playerUuid(), rule.networkId(), rule.type(), kind, now, subject.target(), subject.amount(),
+                            rule.threshold(), subject.orderId())));
                 }
             }
-            boolean firing = stalled.stream().anyMatch(key -> key.startsWith(rule.id() + "/"));
+            boolean firing = announced.stream().anyMatch(key -> key.startsWith(rule.id() + "/"));
             if (firing != wasFiring || reported) {
-                // The state last: a rule shows as active while any of its orders is stalled.
+                // The state last: a rule shows as active while any of its subjects is stuck.
                 transitions.add(new Transition(rule, firing ? AlertState.FIRING : AlertState.OK, notifiedAt, null));
             }
         }

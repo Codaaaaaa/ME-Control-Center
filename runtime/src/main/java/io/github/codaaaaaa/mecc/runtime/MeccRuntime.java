@@ -27,6 +27,8 @@ import io.github.codaaaaaa.mecc.runtime.alerts.AlertMonitor;
 import io.github.codaaaaaa.mecc.runtime.alerts.AlertNotifier;
 import io.github.codaaaaaa.mecc.runtime.alerts.DefaultAlertService;
 import io.github.codaaaaaa.mecc.runtime.assets.AssetCatalog;
+import io.github.codaaaaaa.mecc.runtime.automation.DefaultRestockService;
+import io.github.codaaaaaa.mecc.runtime.automation.RestockEngine;
 import io.github.codaaaaaa.mecc.runtime.assets.ContentPacks;
 import io.github.codaaaaaa.mecc.runtime.assets.VanillaAssets;
 import io.github.codaaaaaa.mecc.runtime.auth.AdminResolver;
@@ -41,9 +43,11 @@ import io.github.codaaaaaa.mecc.runtime.crafting.DefaultSavedOrderService;
 import io.github.codaaaaaa.mecc.runtime.crafting.PlanStore;
 import io.github.codaaaaaa.mecc.runtime.crafting.ResourceLabels;
 import io.github.codaaaaaa.mecc.runtime.crafting.UserCache;
+import io.github.codaaaaaa.mecc.runtime.explorer.DefaultExplorerService;
 import io.github.codaaaaaa.mecc.runtime.insights.DefaultInsightsService;
 import io.github.codaaaaaa.mecc.runtime.insights.InsightsSampler;
 import io.github.codaaaaaa.mecc.runtime.live.LiveEvents;
+import io.github.codaaaaaa.mecc.runtime.machines.DefaultMachineService;
 import io.github.codaaaaaa.mecc.runtime.networks.DefaultNetworkService;
 import io.github.codaaaaaa.mecc.runtime.networks.NetworkDirectory;
 import io.github.codaaaaaa.mecc.runtime.networks.NetworkGuard;
@@ -120,6 +124,7 @@ public final class MeccRuntime {
     private LiveEvents liveEvents;
     private InsightsSampler insightsSampler;
     private AlertMonitor alertMonitor;
+    private RestockEngine restockEngine;
     private AssetCatalog assets;
     private ThreadPoolExecutor iconWorkers;
     private WebServer webServer;
@@ -170,6 +175,11 @@ public final class MeccRuntime {
     /** The alert engine, or {@code null} before startup finished. For tests. */
     synchronized AlertMonitor alertMonitor() {
         return alertMonitor;
+    }
+
+    /** The Auto Restock engine, or {@code null} before startup finished. For tests. */
+    synchronized RestockEngine restockEngine() {
+        return restockEngine;
     }
 
     /** Port the web server is bound to, or -1 when it is not running. */
@@ -318,8 +328,11 @@ public final class MeccRuntime {
         // Alerts (spec section 23): evaluated from discovery status and the terminal's storage snapshots.
         AlertNotifier alertNotifier = new AlertNotifier(store, config.alerts(), labels,
                 networkId -> networkName(networkDirectory, networkId), live::playerEvent, workers, clock);
-        AlertMonitor alertMonitor = new AlertMonitor(store, networkDirectory, resourceSnapshots, tracker::activeOrders,
-                alertNotifier, config.alerts(), clock);
+        // Machines behind pattern providers (working / stuck), shared by the machines page and the machine alert.
+        DefaultMachineService machineService = new DefaultMachineService(guard, platform.patterns(), gateway, labels,
+                iconService::assetVersion, clock);
+        AlertMonitor alertMonitor = new AlertMonitor(store, networkDirectory, guard, resourceSnapshots, cpuSnapshots,
+                tracker, machineService, labels, alertNotifier, config.alerts(), clock);
         BiConsumer<CraftingOrder, String> orderEvents = (order, type) -> {
             live.orderChanged(order, type);
             alertMonitor.orderChanged(order, type);
@@ -355,6 +368,14 @@ public final class MeccRuntime {
                 iconService::assetVersion, config.crafting(), clock);
         DefaultAlertService alertService = new DefaultAlertService(store, guard, resolver, labels, alertNotifier,
                 iconService::assetVersion, config.alerts(), clock);
+        // Auto Restock (spec section 25) and the Network Explorer (section 26).
+        DefaultRestockService restockService = new DefaultRestockService(store, guard, platform.networks(), gateway,
+                resolver, resourceSnapshots, labels, userCache, iconService::assetVersion, config.automation(),
+                config.crafting(), clock);
+        RestockEngine restock = new RestockEngine(store, guard, resourceSnapshots, craftingService,
+                config.automation(), security.adminOverride(), clock);
+        DefaultExplorerService explorerService = new DefaultExplorerService(guard, platform.networks(), gateway, labels,
+                iconService::assetVersion, clock);
         DefaultAdminService adminService = new DefaultAdminService(store, guard, config, loader.file().toString(),
                 platform.meccVersion(), platform.info(), contentPacks::status, clock);
 
@@ -375,6 +396,7 @@ public final class MeccRuntime {
             liveEvents = live;
             insightsSampler = sampler;
             this.alertMonitor = alertMonitor;
+            this.restockEngine = restock;
 
             commands = commandService;
             phase = Phase.RUNNING;
@@ -393,6 +415,11 @@ public final class MeccRuntime {
         } else {
             LOGGER.info("ME Control Center alerts disabled by configuration (alerts.enabled = false)");
         }
+        if (config.automation().autoRestockEnabled()) {
+            restock.start(scheduler);
+            LOGGER.info("ME Control Center Auto Restock is enabled; rules created by network Managers may submit "
+                    + "crafting jobs (automation.auto_restock_enabled = true)");
+        }
         tracker.start(scheduler).exceptionally(error -> {
             LOGGER.error("ME Control Center could not load active crafting orders; they are not tracked until restart", error);
             return null;
@@ -408,7 +435,9 @@ public final class MeccRuntime {
         }
         startWebServer(web, security,
                 new WebApi.Services(statusService, auth, networks, resourceService, iconService, craftingService,
-                        patternService, insightsService, adminService, savedOrderService, alertService), auth, live);
+                        patternService, insightsService, adminService, savedOrderService, alertService, machineService,
+                        restockService, explorerService),
+                auth, live);
     }
 
     private void startWebServer(WebConfig web, SecurityConfig security, WebApi.Services services, DefaultAuthService auth,
@@ -421,7 +450,12 @@ public final class MeccRuntime {
             assets = StaticAssets.empty();
         }
         if (assets.isEmpty()) {
-            LOGGER.warn("ME Control Center web UI bundle not found in this build; serving the API only");
+            LOGGER.warn("ME Control Center web UI bundle ({}) not found in {}; serving the API only. Use the "
+                    + "me-control-center-forge-<version>.jar from platform-forge-1.20.1/build/libs (not -slim or -all), "
+                    + "or build with ./gradlew build so the web UI is packaged.", StaticAssets.INDEX_FILE,
+                    platform.bundleLocation());
+        } else {
+            LOGGER.info("ME Control Center web UI: {} files from {}", assets.size(), platform.bundleLocation());
         }
 
         Set<String> allowedOrigins = new HashSet<>();

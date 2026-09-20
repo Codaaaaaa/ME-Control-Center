@@ -2,6 +2,7 @@ package io.github.codaaaaaa.mecc.core.persistence;
 
 import io.github.codaaaaaa.mecc.core.alerts.AlertRepository;
 import io.github.codaaaaaa.mecc.core.audit.AuditRepository;
+import io.github.codaaaaaa.mecc.core.automation.RestockRepository;
 import io.github.codaaaaaa.mecc.core.auth.DeviceRepository;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingOrderRepository;
 import io.github.codaaaaaa.mecc.core.crafting.SavedOrderRepository;
@@ -35,4 +36,6 @@ public interface Repositories {
     SavedOrderRepository savedOrders();
 
     AlertRepository alerts();
+
+    RestockRepository restock();
 }

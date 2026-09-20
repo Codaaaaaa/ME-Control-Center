@@ -233,7 +233,7 @@ public final class DefaultAlertService implements AlertService {
             case ENERGY_LOW -> 99;
             case RESOURCE_DROP -> 100;
             case RESOURCE_RISE -> 100_000;
-            case CRAFT_STALLED -> AlertRule.MAX_WINDOW_MINUTES;
+            case CRAFT_STALLED, MACHINE_STUCK -> AlertRule.MAX_WINDOW_MINUTES;
             default -> Long.MAX_VALUE;
         };
         long min = type.threshold() == AlertType.Threshold.AMOUNT ? 0 : 1;

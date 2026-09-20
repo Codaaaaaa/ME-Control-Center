@@ -15,6 +15,9 @@ import io.github.codaaaaaa.mecc.core.networks.DiscoverySnapshot.DiscoveredGrid;
 import io.github.codaaaaaa.mecc.core.networks.DiscoverySnapshot.ObservedAnchor;
 import io.github.codaaaaaa.mecc.core.networks.GridStatus;
 import io.github.codaaaaaa.mecc.platform.NetworkPlatform;
+import io.github.codaaaaaa.mecc.platform.NetworkPlatform.DeviceCapture;
+import io.github.codaaaaaa.mecc.platform.NetworkPlatform.DeviceGroupState;
+import io.github.codaaaaaa.mecc.platform.NetworkPlatform.RequesterCapture;
 import io.github.codaaaaaa.mecc.platform.ServerThreadOnly;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -85,6 +88,35 @@ public final class Ae2NetworkPlatform implements NetworkPlatform {
             }
         }
         return new DiscoverySnapshot(Instant.now(), grids, probes);
+    }
+
+    @Override
+    @ServerThreadOnly
+    public RequesterCapture captureRequesters(String gridKey) {
+        Ae2Support.requireServerThread(server, "NetworkPlatform.captureRequesters()");
+        return new RequesterCapture(MeRequesters.present(), MeRequesters.capture(Ae2Support.grid(gridKey)));
+    }
+
+    @Override
+    @ServerThreadOnly
+    public boolean clearRequest(String gridKey, String requesterId, int slot) {
+        Ae2Support.requireServerThread(server, "NetworkPlatform.clearRequest()");
+        return MeRequesters.clear(Ae2Support.grid(gridKey), requesterId, slot);
+    }
+
+    @Override
+    @ServerThreadOnly
+    public DeviceCapture describeDevices(String gridKey) {
+        Ae2Support.requireServerThread(server, "NetworkPlatform.describeDevices()");
+        IGrid grid = Ae2Support.grid(gridKey);
+        List<DeviceGroupState> groups = Ae2Devices.groups(grid);
+        int nodes = 0;
+        int offline = 0;
+        for (DeviceGroupState group : groups) {
+            nodes += group.count();
+            offline += group.offline();
+        }
+        return new DeviceCapture(Instant.now(), status(grid), groups, nodes, offline);
     }
 
     private AnchorProbe probe(BlockLocation location) {

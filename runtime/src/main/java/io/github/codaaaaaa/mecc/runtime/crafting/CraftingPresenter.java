@@ -10,6 +10,7 @@ import io.github.codaaaaaa.mecc.core.crafting.CraftingViews.CpuRef;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingViews.CpuUnsuitableReason;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingViews.CpuView;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingViews.FailureView;
+import io.github.codaaaaaa.mecc.core.crafting.CraftingViews.JobOrigin;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingViews.OrderView;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingViews.PlanEntryView;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingViews.PlanState;
@@ -158,6 +159,9 @@ public final class CraftingPresenter {
         Set<UUID> ids = new HashSet<>();
         for (CpuState cpu : capture.cpus()) {
             tracker.byJob(networkId, cpu.id(), cpu.job()).ifPresent(tracked -> ids.add(tracked.order().creatorUuid()));
+            if (cpu.job() != null && cpu.job().requesterUuid() != null) {
+                ids.add(cpu.job().requesterUuid());
+            }
         }
         return ids;
     }
@@ -178,14 +182,19 @@ public final class CraftingPresenter {
         JobState state = cpu.job();
         if (state != null) {
             Optional<Tracked> order = tracker.byJob(networkId, cpu.id(), state);
-            UUID creator = order.map(tracked -> tracked.order().creatorUuid()).orElse(null);
+            // An order names its creator; a job started in game names the player AE2 recorded, if any.
+            UUID creator = order.map(tracked -> tracked.order().creatorUuid()).orElse(state.requesterUuid());
+            JobOrigin origin = order.isPresent() ? JobOrigin.WEB : creator != null ? JobOrigin.IN_GAME : JobOrigin.UNKNOWN;
+            UserView known = creator == null ? null : users.get(creator);
+            boolean paired = known != null && known.playerName() != null;
+            UserView initiator = creator == null ? null
+                    : paired ? known : new UserView(creator, order.isPresent() ? null : state.requesterName());
             ProgressView progress = state.progress() == null ? ProgressView.unknown(state.amount())
                     : new ProgressView(null, null, state.amount(), clampPercent(state.progress() * 100), Confidence.AUTHORITATIVE);
             job = new CpuJobView(state.jobId(), labels.label(state.output(), locale), state.amount(), progress,
                     state.elapsed() == null ? null : state.elapsed().toMillis(),
                     order.map(tracked -> tracked.order().id()).orElse(null),
-                    creator == null ? null : user(creator, users),
-                    mayCancel(access, viewer, creator));
+                    initiator, origin, paired, mayCancel(access, viewer, creator));
         }
         return new CpuView(cpu.id(), labels.text(cpu.name(), locale), cpu.location(), cpu.busy(), cpu.online(),
                 cpu.storageBytes(), cpu.coProcessors(), cpu.selectionMode(), job);

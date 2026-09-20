@@ -79,6 +79,25 @@ final class PatternContainers {
      * multiblocks report the first.
      */
     static AEItemKey multiblock(PatternContainer container) {
+        Object machine = controller(container);
+        if (machine == null) {
+            return null;
+        }
+        try {
+            Method definition = find(machine.getClass(), "getDefinition");
+            Object value = definition == null ? null : definition.invoke(machine);
+            Method asStack = value == null ? null : find(value.getClass(), "asStack");
+            return asStack == null ? null : AEItemKey.of((ItemStack) asStack.invoke(value));
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * The controller machine of the multiblock the container is part of (GregTech-like mods), or {@code null}. Parts of
+     * several multiblocks report the first.
+     */
+    static Object controller(PatternContainer container) {
         Shape shape = shape(container.getClass());
         if (shape.controllers() == null) {
             return null;
@@ -89,11 +108,7 @@ final class PatternContainers {
             }
             Object controller = controllers.get(0);
             Method self = find(controller.getClass(), "self");
-            Object machine = self == null ? controller : self.invoke(controller);
-            Method definition = find(machine.getClass(), "getDefinition");
-            Object value = definition == null ? null : definition.invoke(machine);
-            Method asStack = value == null ? null : find(value.getClass(), "asStack");
-            return asStack == null ? null : AEItemKey.of((ItemStack) asStack.invoke(value));
+            return self == null ? controller : self.invoke(controller);
         } catch (ReflectiveOperationException | RuntimeException e) {
             return null;
         }

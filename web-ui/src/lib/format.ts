@@ -56,6 +56,18 @@ export function formatRelative(iso: string, locale: string, now: number = Date.n
   return format.format(Math.round(seconds / 86_400), 'day');
 }
 
+/**
+ * A date and time in the UI language. Use this (or {@link toBcp47}) for every date: the UI's locale codes (`zh_cn`)
+ * are not BCP 47 tags, and passing one to `toLocaleString` throws a RangeError that takes the whole page down.
+ */
+export function formatDateTime(value: string | number | Date, locale: string): string {
+  return new Date(value).toLocaleString(toBcp47(locale));
+}
+
+export function formatTime(value: string | number | Date, locale: string): string {
+  return new Date(value).toLocaleTimeString(toBcp47(locale));
+}
+
 export function toBcp47(locale: string): string {
   return locale === 'zh_cn' ? 'zh-CN' : 'en';
 }

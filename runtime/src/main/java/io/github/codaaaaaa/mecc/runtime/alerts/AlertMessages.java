@@ -42,7 +42,11 @@ final class AlertMessages {
                     ? (zh ? "合成 %s × %s 已 %s 分钟没有进展" : "Crafting %s × %s made no progress for %s min")
                             .formatted(value, resource, threshold)
                     : (zh ? "合成 %s × %s 恢复进展" : "Crafting %s × %s is progressing again").formatted(value, resource);
-            case NETWORK_OFFLINE -> triggered
+            case MACHINE_STUCK -> triggered
+                    ? (zh ? "%s 已 %s 分钟没有进展（合成在等它）" : "%s made no progress for %s min while a craft waits for it")
+                            .formatted(resource.isEmpty() ? (zh ? "机器" : "A machine") : resource, threshold)
+                    : (zh ? "%s 恢复工作" : "%s is working again").formatted(resource.isEmpty() ? (zh ? "机器" : "A machine") : resource);
+                        case NETWORK_OFFLINE -> triggered
                     ? (zh ? "网络离线" : "The network is offline")
                     : (zh ? "网络已恢复在线" : "The network is back online");
             case ENERGY_LOW -> triggered

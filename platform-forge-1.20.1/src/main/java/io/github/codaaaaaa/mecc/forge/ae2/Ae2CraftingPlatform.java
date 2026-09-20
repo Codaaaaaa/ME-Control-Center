@@ -1,6 +1,7 @@
 package io.github.codaaaaaa.mecc.forge.ae2;
 
 import appeng.api.crafting.IPatternDetails;
+import appeng.api.features.IPlayerRegistry;
 import appeng.api.networking.IGrid;
 import appeng.api.networking.IGridNode;
 import appeng.api.networking.crafting.CalculationStrategy;
@@ -8,6 +9,7 @@ import appeng.api.networking.crafting.CraftingJobStatus;
 import appeng.api.networking.crafting.ICraftingCPU;
 import appeng.api.networking.crafting.ICraftingLink;
 import appeng.api.networking.crafting.ICraftingPlan;
+import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.api.networking.crafting.ICraftingService;
 import appeng.api.networking.crafting.ICraftingSubmitResult;
 import appeng.api.networking.crafting.UnsuitableCpus;
@@ -15,7 +17,10 @@ import appeng.api.networking.security.IActionSource;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.api.stacks.KeyCounter;
+import appeng.crafting.execution.CraftingCpuLogic;
+import appeng.helpers.patternprovider.PatternContainer;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
+import com.mojang.authlib.GameProfile;
 import io.github.codaaaaaa.mecc.core.error.ErrorCode;
 import io.github.codaaaaaa.mecc.core.error.MeccException;
 import io.github.codaaaaaa.mecc.core.networks.BlockLocation;
@@ -34,6 +39,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -144,9 +150,10 @@ public final class Ae2CraftingPlatform implements CraftingPlatform {
                 Double progress = status.totalItems() > 0
                         ? Math.max(0.0, Math.min(1.0, status.progress() / (double) status.totalItems()))
                         : null;
+                UUID requester = cpu instanceof CraftingCPUCluster cluster ? requester(cluster.craftingLogic) : null;
                 job = new JobState(link == null ? null : link.getCraftingID().toString(),
                         storage.describe(status.crafting().what()), status.crafting().amount(), progress,
-                        Duration.ofNanos(Math.max(0, status.elapsedTimeNanos())));
+                        Duration.ofNanos(Math.max(0, status.elapsedTimeNanos())), requester, playerName(requester));
             }
         } catch (RuntimeException e) {
             LOGGER.debug("Could not read the job of crafting CPU {}", cpu, e);
@@ -160,6 +167,117 @@ public final class Ae2CraftingPlatform implements CraftingPlatform {
         }
         return new CpuState(cpuId(cpu), name, location, cpu.isBusy(), online, cpu.getAvailableStorage(),
                 cpu.getCoProcessors(), cpu.getSelectionMode().name(), job);
+    }
+
+    /** Whoever requested the job, in game or through ME Control Center; AE2 keeps an ID it maps to the profile. */
+    private UUID requester(CraftingCpuLogic logic) {
+        Integer id = Ae2Internals.requesterId(logic);
+        if (id == null || id < 0) {
+            return null;
+        }
+        try {
+            return IPlayerRegistry.getMapping(server).getProfileId(id);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private String playerName(UUID player) {
+        if (player == null || server.getProfileCache() == null) {
+            return null;
+        }
+        return server.getProfileCache().get(player).map(GameProfile::getName).orElse(null);
+    }
+
+    // --- job detail (crafting tree) -----------------------------------------------------------------
+
+    @Override
+    @ServerThreadOnly
+    public JobDetail describeJob(String gridKey, String cpuId) {
+        requireServerThread();
+        IGrid grid = grid(gridKey);
+        if (!(findCpu(grid, cpuId) instanceof CraftingCPUCluster cluster)) {
+            return null;
+        }
+        CraftingCpuLogic logic = cluster.craftingLogic;
+        GenericStack output = logic.getFinalJobOutput();
+        Map<IPatternDetails, Long> tasks = Ae2Internals.tasks(logic);
+        if (!logic.hasJob() || output == null || tasks == null) {
+            return null;
+        }
+        List<JobTask> described = new ArrayList<>(tasks.size());
+        tasks.forEach((pattern, remaining) -> {
+            Holders holders = holders(grid, pattern);
+            described.add(new JobTask(patternId(pattern), amounts(pattern.getOutputs()), inputs(pattern), remaining,
+                    holders.available(), holders.machineIds()));
+        });
+
+        List<ResourceAmount> stored = new ArrayList<>();
+        for (var entry : logic.getInventory().list) {
+            stored.add(new ResourceAmount(storage.describe(entry.getKey()), entry.getLongValue()));
+        }
+        Set<AEKey> waiting = new HashSet<>();
+        logic.getAllWaitingFor(waiting);
+        List<ResourceAmount> inMachines = new ArrayList<>();
+        for (AEKey key : waiting) {
+            inMachines.add(new ResourceAmount(storage.describe(key), logic.getWaitingFor(key)));
+        }
+        Duration elapsed = Duration.ofNanos(Math.max(0, logic.getElapsedTimeTracker().getElapsedTime()));
+        return new JobDetail(link(cluster) == null ? null : link(cluster).getCraftingID().toString(),
+                storage.describe(output.what()), output.amount(), elapsed, described, stored, inMachines);
+    }
+
+    /** Stable while the job runs: the encoded pattern item, NBT included. */
+    private static String patternId(IPatternDetails pattern) {
+        return Ae2Support.shortHash(pattern.getDefinition().toTagGeneric().toString());
+    }
+
+    private List<ResourceAmount> amounts(GenericStack[] stacks) {
+        List<ResourceAmount> amounts = new ArrayList<>();
+        for (GenericStack stack : stacks) {
+            if (stack != null) {
+                amounts.add(new ResourceAmount(storage.describe(stack.what()), stack.amount()));
+            }
+        }
+        return amounts;
+    }
+
+    private List<ResourceAmount> inputs(IPatternDetails pattern) {
+        List<ResourceAmount> inputs = new ArrayList<>();
+        for (IPatternDetails.IInput input : pattern.getInputs()) {
+            GenericStack[] candidates = input.getPossibleInputs();
+            if (candidates.length > 0) {
+                inputs.add(new ResourceAmount(storage.describe(candidates[0].what()),
+                        candidates[0].amount() * input.getMultiplier()));
+            }
+        }
+        return inputs;
+    }
+
+    /** @param available whether one of them could take a run now */
+    private record Holders(boolean available, List<String> machineIds) {
+    }
+
+    /** The providers holding a pattern: whether any is free, and which machines they drive. */
+    private static Holders holders(IGrid grid, IPatternDetails pattern) {
+        if (!(grid.getCraftingService() instanceof appeng.me.service.CraftingService service)) {
+            return new Holders(true, List.of());
+        }
+        boolean available = false;
+        List<String> machineIds = new ArrayList<>();
+        for (ICraftingProvider provider : service.getProviders(pattern)) {
+            available |= !provider.isBusy();
+            PatternContainer container = Ae2Internals.container(provider);
+            if (container == null) {
+                continue;
+            }
+            for (String id : Ae2PatternPlatform.machineIds(container)) {
+                if (!machineIds.contains(id)) {
+                    machineIds.add(id);
+                }
+            }
+        }
+        return new Holders(available, machineIds);
     }
 
     private static ICraftingLink link(ICraftingCPU cpu) {

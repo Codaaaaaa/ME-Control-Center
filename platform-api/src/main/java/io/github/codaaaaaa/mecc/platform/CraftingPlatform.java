@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Autocrafting on an ME network (spec section 43, {@code CraftingPlatform}).
@@ -54,6 +55,54 @@ public interface CraftingPlatform {
      */
     @ServerThreadOnly
     CancelOutcome cancel(String gridKey, String cpuId, String jobId, ResourceId expectedOutput);
+
+    /**
+     * What a CPU's job is made of right now, for the crafting tree (spec section 12): every pattern still to run,
+     * what the CPU holds, and what it waits for from machines. {@code null} when the CPU is idle, unknown, or of a type
+     * whose job cannot be read.
+     */
+    @ServerThreadOnly
+    JobDetail describeJob(String gridKey, String cpuId);
+
+    /** An amount of a resource; raw units (millibuckets for fluids). */
+    record ResourceAmount(ResourceDescriptor resource, long amount) {
+        public ResourceAmount {
+            Objects.requireNonNull(resource, "resource");
+        }
+    }
+
+    /**
+     * One pattern of a running job.
+     *
+     * @param id               identifies the pattern within the job, stable while it runs
+     * @param outputs          what one run makes; the first is the primary output
+     * @param inputs           what one run takes
+     * @param remaining        runs still to push to machines
+     * @param machineAvailable whether some provider holding the pattern could take a run now
+     * @param machineIds       the machines holding the pattern, as {@code PatternPlatform.MachineState#id}
+     */
+    record JobTask(String id, List<ResourceAmount> outputs, List<ResourceAmount> inputs, long remaining,
+                   boolean machineAvailable, List<String> machineIds) {
+        public JobTask {
+            outputs = List.copyOf(outputs);
+            inputs = List.copyOf(inputs);
+            machineIds = List.copyOf(machineIds);
+        }
+    }
+
+    /**
+     * @param stored     what the CPU holds: ingredients taken from storage and intermediate results
+     * @param inMachines what the CPU waits for from machines it pushed patterns to
+     */
+    record JobDetail(String jobId, ResourceDescriptor output, long amount, Duration elapsed, List<JobTask> tasks,
+                     List<ResourceAmount> stored, List<ResourceAmount> inMachines) {
+        public JobDetail {
+            Objects.requireNonNull(output, "output");
+            tasks = List.copyOf(tasks);
+            stored = List.copyOf(stored);
+            inMachines = List.copyOf(inMachines);
+        }
+    }
 
     /** A running or finished crafting calculation. All methods are thread-safe. */
     interface Calculation {
@@ -120,8 +169,11 @@ public interface CraftingPlatform {
      * @param amount   requested amount of the final output
      * @param progress completed fraction 0-1 as reported by the crafting system, or {@code null}
      * @param elapsed  running time, or {@code null}
+     * @param requesterUuid the player who requested the job (in game or through ME Control Center), or {@code null}
+     * @param requesterName that player's name as the server knows it, or {@code null}
      */
-    record JobState(String jobId, ResourceDescriptor output, long amount, Double progress, Duration elapsed) {
+    record JobState(String jobId, ResourceDescriptor output, long amount, Double progress, Duration elapsed,
+                    UUID requesterUuid, String requesterName) {
         public JobState {
             Objects.requireNonNull(output, "output");
         }

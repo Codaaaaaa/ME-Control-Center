@@ -36,6 +36,11 @@ public interface MeccPlatform {
      */
     Optional<InputStream> openBundledResource(String path);
 
+    /** Where bundled resources are read from, for log messages. */
+    default String bundleLocation() {
+        return "the ME Control Center distribution";
+    }
+
     /** Raw primitive for scheduling work on the server thread. Wrap it in a gateway before use. */
     ServerThreadExecutor serverThreadExecutor();
 

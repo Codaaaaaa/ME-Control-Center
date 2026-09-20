@@ -43,9 +43,83 @@ export const cpuJobSchema = z.object({
   elapsedMillis: z.number().nullable(),
   orderId: z.string().nullable(),
   initiator: userViewSchema.nullable(),
+  /** WEB: an ME Control Center order; IN_GAME: requested in game by `initiator`; UNKNOWN: a machine or unrecorded. */
+  origin: z.enum(['WEB', 'IN_GAME', 'UNKNOWN']),
+  /** Whether the initiator has paired a browser. */
+  paired: z.boolean(),
   cancellable: z.boolean(),
 });
 export type CpuJob = z.infer<typeof cpuJobSchema>;
+
+// --- Crafting tree of a running job (spec section 12) ---------------------------------------------------
+
+export const STEP_STATUSES = ['CRAFTING', 'WAITING_MACHINE', 'READY', 'WAITING_INPUTS', 'DONE', 'FROM_STORAGE'] as const;
+export type StepStatus = (typeof STEP_STATUSES)[number];
+
+export interface Step {
+  id: string;
+  resource: ResourceLabel;
+  perRun: number;
+  runs: number;
+  remaining: number;
+  status: StepStatus;
+  inMachines: number;
+  stored: number;
+  /** Machines holding this pattern; join with the machines endpoint for their status. */
+  machineIds: string[];
+  children: Step[];
+}
+
+export const stepSchema: z.ZodType<Step> = z.lazy(() => z.object({
+  id: z.string(),
+  resource: resourceLabelSchema,
+  perRun: z.number(),
+  runs: z.number(),
+  remaining: z.number(),
+  status: z.enum(STEP_STATUSES),
+  inMachines: z.number(),
+  stored: z.number(),
+  machineIds: z.array(z.string()),
+  children: z.array(stepSchema),
+}));
+
+export const jobTreeSchema = z.object({
+  cpuId: z.string(),
+  jobId: z.string().nullable(),
+  output: resourceLabelSchema,
+  amount: z.number(),
+  elapsedMillis: z.number().nullable(),
+  /** First seen after the job started: steps that finished before are missing. */
+  partial: z.boolean(),
+  root: stepSchema,
+  counts: z.partialRecord(z.enum(STEP_STATUSES), z.number()),
+  assetVersion: z.string(),
+});
+export type JobTree = z.infer<typeof jobTreeSchema>;
+
+export function fetchJobTree(networkId: string, cpuId: string, locale: string, signal?: AbortSignal): Promise<JobTree> {
+  return getJson(`${base(networkId)}/cpus/${encodeURIComponent(cpuId)}/tree?locale=${encodeURIComponent(locale)}`,
+    jobTreeSchema, signal);
+}
+
+/** Steps worth showing: everything, or only what is still going on (finished branches and ingredients hidden). */
+export function visibleSteps(step: Step, hideFinished: boolean): Step | null {
+  if (!hideFinished) return step;
+  if (step.status === 'DONE' || step.status === 'FROM_STORAGE') return null;
+  return { ...step, children: step.children.map((child) => visibleSteps(child, true)).filter((child): child is Step => child !== null) };
+}
+
+/** Steps being worked on or blocked, one per pattern, for the "what is happening now" list. */
+export function activeSteps(root: Step): Step[] {
+  const seen = new Map<string, Step>();
+  const walk = (step: Step) => {
+    if (['CRAFTING', 'WAITING_MACHINE', 'READY'].includes(step.status) && !seen.has(step.id)) seen.set(step.id, step);
+    step.children.forEach(walk);
+  };
+  walk(root);
+  const order: StepStatus[] = ['WAITING_MACHINE', 'CRAFTING', 'READY'];
+  return [...seen.values()].sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status));
+}
 
 export const cpuSchema = z.object({
   id: z.string(),

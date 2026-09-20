@@ -9,6 +9,7 @@ import io.github.codaaaaaa.mecc.core.crafting.CraftingOrder;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingOrderRepository.Cursor;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingService;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingViews.CpuList;
+import io.github.codaaaaaa.mecc.core.crafting.CraftingViews.JobTreeView;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingViews.OrderDetailView;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingViews.OrderEventView;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingViews.OrderPage;
@@ -51,8 +52,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
@@ -82,6 +83,7 @@ public final class DefaultCraftingService implements CraftingService {
     private final CraftingTracker tracker;
     private final CraftingPresenter presenter;
     private final ResourceLabels labels;
+    private final JobTrees jobTrees;
     private final UserCache users;
     private final ScheduledExecutorService scheduler;
     private final Executor workers;
@@ -104,11 +106,26 @@ public final class DefaultCraftingService implements CraftingService {
         this.tracker = tracker;
         this.presenter = presenter;
         this.labels = labels;
+        this.jobTrees = new JobTrees(labels, presenter::assetVersion);
         this.users = users;
         this.scheduler = scheduler;
         this.workers = workers;
         this.config = config;
         this.clock = clock;
+    }
+
+    /**
+     * Who an order is recorded and audited as: a browser session, or the restock engine acting for the player who
+     * owns a Keep Stock rule (spec section 25), which has no device.
+     */
+    private record Actor(UUID uuid, String name, String deviceId) {
+        static Actor of(Session session) {
+            return new Actor(session.user().playerUuid(), session.user().playerName(), session.device().id());
+        }
+
+        PlayerProfile profile() {
+            return new PlayerProfile(uuid, name);
+        }
     }
 
     /** Receives orders created or changed by this service (for live events). */
@@ -130,6 +147,21 @@ public final class DefaultCraftingService implements CraftingService {
     }
 
     @Override
+    public CompletionStage<JobTreeView> jobTree(Session session, UUID networkId, String cpuId, String locale) {
+        return guard.access(session, networkId).thenCompose(access -> {
+            NetworkGuard.require(access, NetworkCapability.VIEW_NETWORK);
+            String gridKey = guard.gridKey(networkId);
+            return gateway.call("crafting.describeJob", () -> crafting.describeJob(gridKey, cpuId), SERVER_CALL_TIMEOUT)
+                    .thenApply(detail -> {
+                        if (detail == null) {
+                            throw notRunning();
+                        }
+                        return jobTrees.view(cpuId, detail, locale == null || locale.isBlank() ? "en_us" : locale);
+                    });
+        });
+    }
+
+    @Override
     public CompletionStage<Void> cancelCpuJob(Session session, UUID networkId, String cpuId, String jobId) {
         return guard.access(session, networkId).thenCompose(access -> {
             String gridKey = guard.gridKey(networkId);
@@ -143,7 +175,9 @@ public final class DefaultCraftingService implements CraftingService {
                 if (order.isPresent()) {
                     return cancelOrder(session, access, order.get().order(), gridKey).thenApply(ignored -> (Void) null);
                 }
-                NetworkGuard.require(access, NetworkCapability.CANCEL_ANY_CRAFT);
+                // A job the player requested in game is theirs to cancel, like an order.
+                NetworkCapability capability = CraftingPresenter.cancelCapability(uuid(session), cpu.job().requesterUuid());
+                NetworkGuard.require(access, capability);
                 ResourceId output = cpu.job().output().id();
                 String expectedJob = cpu.job().jobId();
                 return gateway.call("crafting.cancel", () -> crafting.cancel(gridKey, cpuId, expectedJob, output),
@@ -153,8 +187,8 @@ public final class DefaultCraftingService implements CraftingService {
                                 throw notRunning();
                             }
                             return store.write(repos -> {
-                                audit(repos, session, networkId, AuditAction.CRAFT_CANCEL, "cpu:" + cpuId, AuditResult.SUCCESS,
-                                        access.requiresOverride(NetworkCapability.CANCEL_ANY_CRAFT),
+                                audit(repos, Actor.of(session), networkId, AuditAction.CRAFT_CANCEL, "cpu:" + cpuId, AuditResult.SUCCESS,
+                                        access.requiresOverride(capability),
                                         Map.of("output", output.toString(), "amount", Long.toString(cpu.job().amount())));
                                 return (Void) null;
                             });
@@ -278,21 +312,22 @@ public final class DefaultCraftingService implements CraftingService {
             if (!plan.submitting.compareAndSet(false, true)) {
                 throw new MeccException(ErrorCode.CONFLICT, "This plan is already being submitted");
             }
-            return submitPlan(session, access, plan, gridKey, cpuId, source, locale)
+            return submitPlan(Actor.of(session), access, plan, gridKey, cpuId, source)
+                    .thenCompose(order -> view(order, access, uuid(session), locale))
                     .whenComplete((view, error) -> plan.submitting.set(false));
         });
     }
 
-    private CompletableFuture<OrderView> submitPlan(Session session, NetworkAccess access, Plan plan, String gridKey,
-                                                    String cpuId, OrderSource source, String locale) {
+    private CompletableFuture<CraftingOrder> submitPlan(Actor actor, NetworkAccess access, Plan plan, String gridKey,
+                                                        String cpuId, OrderSource source) {
         Instant now = clock.instant();
-        CraftingOrder order = new CraftingOrder(UUID.randomUUID(), plan.networkId, uuid(session), session.device().id(),
+        CraftingOrder order = new CraftingOrder(UUID.randomUUID(), plan.networkId, actor.uuid(), actor.deviceId(),
                 source, labels.target(plan.summary.output()), plan.summary.amount(), OrderState.SUBMITTING,
                 null, null, null, plan.summary.bytes(), now, null, null, null, null, null, null);
-        PlayerProfile requester = profile(session);
+        PlayerProfile requester = actor.profile();
         return store.write(repos -> {
                     repos.orders().insert(order);
-                    repos.orders().appendEvent(new OrderEvent(order.id(), now, OrderEventType.CREATED, uuid(session),
+                    repos.orders().appendEvent(new OrderEvent(order.id(), now, OrderEventType.CREATED, actor.uuid(),
                             cpuId == null ? Map.of() : Map.of("cpu", cpuId)));
                     return order;
                 })
@@ -301,12 +336,12 @@ public final class DefaultCraftingService implements CraftingService {
                         .handle((outcome, error) -> outcome != null ? outcome
                                 : SubmitOutcome.rejected(errorCode(error), Map.of())))
                 .thenCompose(outcome -> outcome.success()
-                        ? started(session, access, plan, order, outcome, locale)
-                        : rejected(session, order, outcome));
+                        ? started(actor, access, plan, order, outcome, source)
+                        : rejected(actor, order, outcome, source));
     }
 
-    private CompletableFuture<OrderView> started(Session session, NetworkAccess access, Plan plan, CraftingOrder order,
-                                                 SubmitOutcome outcome, String locale) {
+    private CompletableFuture<CraftingOrder> started(Actor actor, NetworkAccess access, Plan plan, CraftingOrder order,
+                                                     SubmitOutcome outcome, OrderSource source) {
         plans.remove(plan);
         Instant now = clock.instant();
         CraftingOrder running = order.started(outcome.jobId(), outcome.cpuId(), labels.text(outcome.cpuName(), "en_us"), now);
@@ -315,17 +350,20 @@ public final class DefaultCraftingService implements CraftingService {
                     repos.orders().update(running);
                     repos.orders().appendEvent(new OrderEvent(order.id(), now, OrderEventType.STARTED, null,
                             outcome.cpuId() == null ? Map.of() : Map.of("cpu", outcome.cpuId())));
-                    audit(repos, session, order.networkId(), AuditAction.CRAFT_SUBMIT, order.id().toString(),
-                            AuditResult.SUCCESS, access.requiresOverride(NetworkCapability.SUBMIT_CRAFT), orderParameters(order));
+                    audit(repos, actor, order.networkId(), auditAction(source), order.id().toString(),
+                            AuditResult.SUCCESS,
+                            access != null && access.requiresOverride(NetworkCapability.SUBMIT_CRAFT),
+                            orderParameters(order));
                     return running;
                 })
-                .thenCompose(stored -> {
+                .thenApply(stored -> {
                     orderEvents.accept(stored, LiveEvent.ORDER_CREATED);
-                    return view(stored, access, session, locale);
+                    return stored;
                 });
     }
 
-    private CompletableFuture<OrderView> rejected(Session session, CraftingOrder order, SubmitOutcome outcome) {
+    private CompletableFuture<CraftingOrder> rejected(Actor actor, CraftingOrder order, SubmitOutcome outcome,
+                                                      OrderSource source) {
         ErrorCode code = toErrorCode(outcome.errorCode());
         String message = rejectionMessage(code);
         CraftingOrder failed = order.ended(OrderState.FAILED, clock.instant(), code.name(), message);
@@ -335,7 +373,7 @@ public final class DefaultCraftingService implements CraftingService {
                             Map.of("code", code.name())));
                     Map<String, String> parameters = new HashMap<>(orderParameters(order));
                     parameters.put("error", code.name());
-                    audit(repos, session, order.networkId(), AuditAction.CRAFT_SUBMIT, order.id().toString(),
+                    audit(repos, actor, order.networkId(), auditAction(source), order.id().toString(),
                             AuditResult.FAILED, false, parameters);
                     return failed;
                 })
@@ -344,6 +382,53 @@ public final class DefaultCraftingService implements CraftingService {
                     Map<String, Object> details = new HashMap<>(outcome.details());
                     details.put("orderId", order.id().toString());
                     throw new CompletionException(new MeccException(code, message, details));
+                });
+    }
+
+    /** Automation crafts are audited as automation, so the audit log tells them from what a player submitted. */
+    private static AuditAction auditAction(OrderSource source) {
+        return source == OrderSource.AUTOMATION ? AuditAction.RESTOCK_CRAFT : AuditAction.CRAFT_SUBMIT;
+    }
+
+    /**
+     * Submits a Keep Stock craft on behalf of {@code owner} (spec section 25): calculates a plan and, when it is
+     * complete, submits it as an {@code AUTOMATION} order that is tracked and audited like any other. The caller has
+     * already checked the owner's permission, the rule's cooldown, and duplicate suppression.
+     *
+     * <p>ponytail: the plan is not kept in the plan store; nobody can confirm it, and it is submitted or dropped
+     * within one calculation.
+     */
+    public CompletableFuture<CraftingOrder> submitAutomatic(UUID networkId, PlayerProfile owner, ResourceId resource,
+                                                            long amount, String cpuId) {
+        if (amount < 1 || amount > config.maxCraftAmount()) {
+            return CompletableFuture.failedFuture(MeccException.validation("amount",
+                    "The amount must be between 1 and " + config.maxCraftAmount()));
+        }
+        Actor actor = new Actor(owner.uuid(), owner.name(), null);
+        String gridKey;
+        try {
+            gridKey = guard.gridKey(networkId);
+        } catch (MeccException e) {
+            return CompletableFuture.failedFuture(e);
+        }
+        return gateway.call("crafting.calculate", () -> crafting.beginCalculation(gridKey, resource, amount, owner),
+                        SERVER_CALL_TIMEOUT)
+                .thenCompose(calculation -> {
+                    Plan plan = new Plan(newPlanId(), networkId, owner.uuid(), gridKey, resource, amount, calculation,
+                            clock.instant());
+                    watch(plan, clock.instant().plusSeconds(config.calculationTimeoutSeconds()));
+                    return plan.finished;
+                })
+                .thenCompose(plan -> {
+                    if (plan.state == PlanState.FAILED) {
+                        throw plan.failure;
+                    }
+                    if (!plan.summary.complete()) {
+                        plan.calculation.cancel();
+                        throw new MeccException(ErrorCode.PLAN_INCOMPLETE,
+                                "Some ingredients are missing and cannot be crafted. The job cannot start.");
+                    }
+                    return submitPlan(actor, null, plan, gridKey, cpuId, OrderSource.AUTOMATION);
                 });
     }
 
@@ -400,7 +485,7 @@ public final class DefaultCraftingService implements CraftingService {
                     }
                     return cancelOrder(session, access, current, guard.gridKey(networkId));
                 })
-                .thenCompose(ended -> view(ended, access, session, locale)));
+                .thenCompose(ended -> view(ended, access, uuid(session), locale)));
     }
 
     /** Cancels a running ME Control Center order on its CPU and records who did it. */
@@ -424,14 +509,14 @@ public final class DefaultCraftingService implements CraftingService {
                     return tracker.finish(order.id(), OrderState.CANCELLED, null, null, uuid(session));
                 })
                 .thenCompose(ended -> store.write(repos -> {
-                    audit(repos, session, order.networkId(), AuditAction.CRAFT_CANCEL, order.id().toString(),
+                    audit(repos, Actor.of(session), order.networkId(), AuditAction.CRAFT_CANCEL, order.id().toString(),
                             AuditResult.SUCCESS, access.requiresOverride(capability), orderParameters(order));
                     return ended.orElseGet(() -> repos.orders().find(order.id()).orElse(order));
                 }));
     }
 
-    private CompletableFuture<OrderView> view(CraftingOrder order, NetworkAccess access, Session session, String locale) {
-        return users.views(Set.of(order.creatorUuid())).thenApply(names -> presenter.order(order, access, uuid(session), names, locale));
+    private CompletableFuture<OrderView> view(CraftingOrder order, NetworkAccess access, UUID viewer, String locale) {
+        return users.views(Set.of(order.creatorUuid())).thenApply(names -> presenter.order(order, access, viewer, names, locale));
     }
 
     private static CraftingOrder findOrder(Repositories repos, UUID networkId, UUID orderId) {
@@ -486,9 +571,9 @@ public final class DefaultCraftingService implements CraftingService {
         return Map.of("resource", order.target().resourceId().toString(), "amount", Long.toString(order.amount()));
     }
 
-    private void audit(Repositories repos, Session session, UUID networkId, AuditAction action, String target,
+    private void audit(Repositories repos, Actor actor, UUID networkId, AuditAction action, String target,
                        AuditResult result, boolean adminOverride, Map<String, String> parameters) {
-        repos.audit().append(new AuditEvent(clock.instant(), uuid(session), session.device().id(), networkId, action,
+        repos.audit().append(new AuditEvent(clock.instant(), actor.uuid(), actor.deviceId(), networkId, action,
                 target, result, adminOverride, parameters));
     }
 

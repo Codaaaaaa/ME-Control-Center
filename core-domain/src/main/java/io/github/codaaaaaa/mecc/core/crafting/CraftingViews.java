@@ -50,7 +50,10 @@ public final class CraftingViews {
      * @param amount      requested amount of {@code output}
      * @param elapsedMillis time the job has been running, or {@code null}
      * @param orderId     the ME Control Center order behind the job, or {@code null} (e.g. started in game)
-     * @param initiator   who started it through ME Control Center, or {@code null}
+     * @param initiator   who requested it, or {@code null} when unknown; the name is {@code null} when not even the
+     *                    server knows it
+     * @param origin      how it was requested
+     * @param paired      whether the initiator has paired a browser with ME Control Center
      * @param cancellable whether the caller may cancel it
      */
     public record CpuJobView(
@@ -61,7 +64,61 @@ public final class CraftingViews {
             Long elapsedMillis,
             UUID orderId,
             UserView initiator,
+            JobOrigin origin,
+            boolean paired,
             boolean cancellable) {
+    }
+
+    /** Where one step of a running job stands (spec section 12, crafting tree). */
+    public enum StepStatus {
+        /** Every run is done and nothing is out in a machine. */
+        DONE,
+        /** Inputs were pushed into a machine and the CPU waits for the result. */
+        CRAFTING,
+        /** The inputs are ready, but every machine that has the pattern is busy. */
+        WAITING_MACHINE,
+        /** The inputs are ready and a machine is free: it goes out with the CPU's next operation. */
+        READY,
+        /** It waits for steps below it to make its inputs. */
+        WAITING_INPUTS,
+        /** An ingredient taken from storage when the job started; nothing crafts it. */
+        FROM_STORAGE
+    }
+
+    /**
+     * One step of a running job: a pattern (or, for {@code FROM_STORAGE}, an ingredient) and the steps that make its
+     * inputs. A step feeding several others appears under each of them.
+     *
+     * @param id         the pattern within the job, or the ingredient's resource ID
+     * @param perRun     how much of {@code resource} one run makes
+     * @param runs       runs the step had when ME Control Center first saw the job
+     * @param remaining  runs still to push to machines
+     * @param inMachines amount of {@code resource} the CPU waits for from machines
+     * @param stored     amount of {@code resource} the CPU holds
+     * @param machineIds the machines holding this pattern, as the machines page identifies them; empty for
+     *                   {@code FROM_STORAGE}
+     */
+    public record StepView(String id, ResourceLabel resource, long perRun, long runs, long remaining, StepStatus status,
+                           long inMachines, long stored, List<String> machineIds, List<StepView> children) {
+    }
+
+    /**
+     * @param partial ME Control Center first saw the job after it had started, so steps that finished before then are
+     *                missing
+     * @param counts  steps per status, each pattern counted once
+     */
+    public record JobTreeView(String cpuId, String jobId, ResourceLabel output, long amount, Long elapsedMillis,
+                              boolean partial, StepView root, Map<StepStatus, Integer> counts, String assetVersion) {
+    }
+
+    /** How a CPU's job was requested. */
+    public enum JobOrigin {
+        /** Through ME Control Center: there is an order. */
+        WEB,
+        /** In game (a crafting terminal, a wireless terminal, another mod) by a known player. */
+        IN_GAME,
+        /** By a machine, an automation, or a player the crafting system did not record. */
+        UNKNOWN
     }
 
     /**

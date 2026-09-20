@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError, failureKind, parseResponse } from './client';
-import { cpuListSchema, orderFilterOf, orderPageSchema, planSchema } from './crafting';
+import {
+  activeSteps,
+  cpuListSchema,
+  orderFilterOf,
+  orderPageSchema,
+  planSchema,
+  visibleSteps,
+  type Step,
+  type StepStatus,
+} from './crafting';
 import { liveEffects } from './live';
 
 const label = {
@@ -35,6 +44,8 @@ const cpuList = {
         elapsedMillis: 872000,
         orderId: 'o1',
         initiator: { playerUuid: 'u1', playerName: 'Alex' },
+        origin: 'WEB',
+        paired: true,
         cancellable: true,
       },
     },
@@ -119,5 +130,31 @@ describe('failureKind for crafting', () => {
     expect(failureKind(new ApiError('http', 409, 'NETWORK_OFFLINE', ''))).toBe('networkOffline');
     expect(failureKind(new ApiError('http', 409, 'NETWORK_UNAVAILABLE', ''))).toBe('networkOffline');
     expect(failureKind(new ApiError('http', 404, 'ORDER_NOT_FOUND', ''))).toBe('notFound');
+  });
+});
+
+describe('crafting tree helpers', () => {
+  const label = (id: string) => ({
+    id, type: 'item', name: id, nameSpans: null, modId: 'minecraft', modName: 'Minecraft', unit: null, iconKey: id,
+  });
+  const step = (id: string, status: StepStatus, children: Step[] = []): Step => ({
+    id, resource: label(id), perRun: 1, runs: 2, remaining: 1, status, inMachines: 0, stored: 0, machineIds: [], children,
+  });
+  const root = step('block', 'WAITING_INPUTS', [
+    step('ingot', 'CRAFTING', [step('ore', 'FROM_STORAGE')]),
+    step('nugget', 'DONE', [step('dust', 'DONE')]),
+    step('ingot', 'CRAFTING'),
+    step('plate', 'WAITING_MACHINE'),
+  ]);
+
+  it('hides finished branches and storage ingredients on request', () => {
+    const shown = visibleSteps(root, true)!;
+    expect(shown.children.map((child) => child.id)).toEqual(['ingot', 'ingot', 'plate']);
+    expect(shown.children[0]!.children).toEqual([]);
+    expect(visibleSteps(root, false)).toBe(root);
+  });
+
+  it('lists what is happening now once per pattern, blocked steps first', () => {
+    expect(activeSteps(root).map((active) => active.id)).toEqual(['plate', 'ingot']);
   });
 });

@@ -315,6 +315,31 @@ final class Migrations {
                     """),
             new Migration(6, "percentage-change alert windows", """
                     ALTER TABLE alert_rules ADD COLUMN window_minutes INTEGER
+                    """),
+            new Migration(7, "auto restock rules", """
+                    CREATE TABLE restock_rules (
+                        id                TEXT PRIMARY KEY,
+                        network_id        TEXT NOT NULL REFERENCES web_networks (id) ON DELETE CASCADE,
+                        created_by        TEXT NOT NULL REFERENCES users (player_uuid),
+                        resource_id       TEXT NOT NULL,
+                        resource_names    TEXT NOT NULL DEFAULT '{}',
+                        resource_mod_id   TEXT NOT NULL,
+                        resource_icon_key TEXT NOT NULL,
+                        unit_symbol       TEXT,
+                        unit_amount       INTEGER,
+                        minimum           INTEGER NOT NULL,
+                        restock_to        INTEGER NOT NULL,
+                        cpu_id            TEXT,
+                        cooldown_minutes  INTEGER NOT NULL,
+                        enabled           INTEGER NOT NULL,
+                        last_run_at       INTEGER,
+                        last_order_id     TEXT,
+                        failures          INTEGER NOT NULL DEFAULT 0,
+                        paused_until      INTEGER,
+                        last_error        TEXT,
+                        created_at        INTEGER NOT NULL
+                    );
+                    CREATE UNIQUE INDEX restock_rules_resource ON restock_rules (network_id, resource_id)
                     """));
 
     private Migrations() {

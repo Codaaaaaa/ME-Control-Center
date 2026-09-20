@@ -14,6 +14,7 @@ export const ALERT_TYPES = [
   'CRAFT_COMPLETED',
   'CRAFT_FAILED',
   'CRAFT_STALLED',
+  'MACHINE_STUCK',
 ] as const;
 export type AlertType = (typeof ALERT_TYPES)[number];
 
@@ -38,6 +39,7 @@ export const ALERT_SHAPE: Record<AlertType, {
   CRAFT_COMPLETED: { resource: 'optional', threshold: null, window: false, cooldown: false },
   CRAFT_FAILED: { resource: 'optional', threshold: null, window: false, cooldown: false },
   CRAFT_STALLED: { resource: 'optional', threshold: 'minutes', window: false, cooldown: false },
+  MACHINE_STUCK: { resource: 'optional', threshold: 'minutes', window: false, cooldown: false },
 };
 
 /** Events report a percent (change or energy) for percentage rules, else an amount. */

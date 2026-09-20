@@ -10,7 +10,9 @@ import io.github.codaaaaaa.mecc.core.command.ChatReply;
 import io.github.codaaaaaa.mecc.core.networks.DiscoverySnapshot.DiscoveredGrid;
 import io.github.codaaaaaa.mecc.core.networks.GridStatus;
 import io.github.codaaaaaa.mecc.core.users.PlayerProfile;
+import io.github.codaaaaaa.mecc.platform.CraftingPlatform;
 import io.github.codaaaaaa.mecc.platform.CraftingPlatform.PlanEntry;
+import io.github.codaaaaaa.mecc.platform.PatternPlatform;
 import java.net.CookieManager;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -297,6 +299,128 @@ class OperationsTest {
         assertEquals("RESOLVED", json(operator.get("/api/v1/alerts")).path("events").get(0).path("kind").asText());
         assertFalse(json(operator.get("/api/v1/alerts/rules?networkId=" + networkId)).path("rules").get(0)
                 .path("active").asBoolean());
+    }
+
+    @Test
+    void inGameJobsNameTheirRequesterAndStallAlertsCoverThem() throws Exception {
+        Browser alexBrowser = member(alex, "OPERATOR");
+        String cpus = "/api/v1/networks/" + networkId + "/crafting/cpus";
+        FakePlatform.FakeJob job = new FakePlatform.FakeJob("in-game-1",
+                FakePlatform.descriptor("item", "minecraft", "iron_ingot"), 64);
+        job.requester = alex.uuid();
+        job.progress = 0.1;
+        platform.crafting.cpu("cpu-main").job = job;
+        JsonNode view = json(owner.get(cpus + "?locale=en_us")).path("cpus").get(0).path("job");
+        assertEquals("IN_GAME", view.path("origin").asText());
+        assertTrue(view.path("paired").asBoolean(), "Alex paired a browser");
+        assertEquals("Alex", view.path("initiator").path("playerName").asText());
+
+        job.requester = eve.uuid();
+        job.requesterName = "Eve";
+        advance(Duration.ofSeconds(5)); // Past the CPU snapshot's age.
+        view = json(owner.get(cpus + "?locale=en_us")).path("cpus").get(0).path("job");
+        assertFalse(view.path("paired").asBoolean());
+        assertEquals("Eve", view.path("initiator").path("playerName").asText(), "the server's name for her");
+
+        job.requester = null;
+        job.requesterName = null;
+        advance(Duration.ofSeconds(5));
+        assertEquals("UNKNOWN", json(owner.get(cpus + "?locale=en_us")).path("cpus").get(0).path("job").path("origin").asText());
+
+        // A job Alex started in game stalls: his stall rule covers it, although there is no order.
+        job.requester = alex.uuid();
+        json(alexBrowser.post("/api/v1/alerts/rules", rule("CRAFT_STALLED", null, 5)));
+        assertEquals(0, check());
+        advance(Duration.ofMinutes(6));
+        assertEquals(1, check());
+        JsonNode event = json(alexBrowser.get("/api/v1/alerts")).path("events").get(0);
+        assertEquals("CRAFT_STALLED", event.path("type").asText());
+        assertTrue(event.path("orderId").isNull(), "started in game");
+    }
+
+    @Test
+    void theCraftingTreeShowsWhereEachStepStands() throws Exception {
+        String tree = "/api/v1/networks/" + networkId + "/crafting/cpus/cpu-main/tree?locale=en_us";
+        assertEquals("NOT_RUNNING", errorCode(owner.get(tree)), "idle CPU");
+        var block = FakePlatform.descriptor("item", "minecraft", "iron_block");
+        var ingot = FakePlatform.descriptor("item", "minecraft", "iron_ingot");
+        var ore = FakePlatform.descriptor("item", "minecraft", "raw_iron");
+        FakePlatform.FakeJob job = new FakePlatform.FakeJob("tree-1", block, 2);
+        job.tasks = List.of(
+                new CraftingPlatform.JobTask("t-block", List.of(new CraftingPlatform.ResourceAmount(block, 1)),
+                        List.of(new CraftingPlatform.ResourceAmount(ingot, 9)), 2, true, List.of("m-press")),
+                new CraftingPlatform.JobTask("t-ingot", List.of(new CraftingPlatform.ResourceAmount(ingot, 1)),
+                        List.of(new CraftingPlatform.ResourceAmount(ore, 1)), 18, true, List.of()));
+        job.stored = List.of(new CraftingPlatform.ResourceAmount(ore, 12));
+        job.inMachines = List.of(new CraftingPlatform.ResourceAmount(ingot, 6));
+        platform.crafting.cpu("cpu-main").job = job;
+
+        JsonNode view = json(member(eve, "VIEWER").get(tree));
+        assertEquals("t-block", view.path("root").path("id").asText());
+        assertEquals("WAITING_INPUTS", view.path("root").path("status").asText());
+        JsonNode ingots = view.path("root").path("children").get(0);
+        assertEquals("CRAFTING", ingots.path("status").asText());
+        assertEquals(6, ingots.path("inMachines").asLong());
+        assertEquals("FROM_STORAGE", ingots.path("children").get(0).path("status").asText());
+        assertEquals(1, view.path("counts").path("CRAFTING").asInt());
+    }
+
+    @Test
+    void machinesThatAJobWaitsForAndDoNotChangeAreStuck() throws Exception {
+        var furnace = FakePlatform.descriptor("item", "minecraft", "furnace");
+        platform.patterns.machines.add(new PatternPlatform.MachineState("m-furnace", furnace, null, List.of("p1"), true, 0,
+                true, 42, null, null, null));
+        String machines = "/api/v1/networks/" + networkId + "/machines?locale=en_us";
+        JsonNode first = json(owner.get(machines)).path("machines").get(0);
+        assertEquals("WORKING", first.path("status").asText(), "just seen");
+        assertEquals("minecraft:furnace", first.path("block").path("id").asText().replace("item:", ""));
+
+        json(owner.post("/api/v1/alerts/rules", rule("MACHINE_STUCK", null, 2)));
+        advance(Duration.ofMinutes(3));
+        JsonNode stuck = json(owner.get(machines)).path("machines").get(0);
+        assertEquals("STUCK", stuck.path("status").asText());
+        assertEquals("NO_CHANGE", stuck.path("reason").asText());
+        assertEquals(1, check());
+        assertEquals("MACHINE_STUCK", json(owner.get("/api/v1/alerts")).path("events").get(0).path("type").asText());
+
+        platform.patterns.machines.set(0, new PatternPlatform.MachineState("m-furnace", furnace, null, List.of("p1"), true,
+                0, true, 43, null, null, null));
+        advance(Duration.ofSeconds(10));
+        assertEquals(1, check(), "it moved: resolved");
+        assertEquals("RESOLVED", json(owner.get("/api/v1/alerts")).path("events").get(0).path("kind").asText());
+    }
+
+    @Test
+    void machinesThatReportTheirOwnStateAreNotGuessedAt() throws Exception {
+        var block = FakePlatform.descriptor("item", "gtceu", "electric_blast_furnace");
+        // A crafting job waits for what it makes and it has not moved for an hour: the guess would call it stuck.
+        platform.patterns.machines.add(new PatternPlatform.MachineState("m-gt", block, null, List.of("p1"), true, 0,
+                false, 42, "IDLE", null, null));
+        String machines = "/api/v1/networks/" + networkId + "/machines?locale=en_us";
+        json(owner.post("/api/v1/alerts/rules", rule("MACHINE_STUCK", null, 2)));
+        advance(Duration.ofHours(1));
+        JsonNode idle = json(owner.get(machines)).path("machines").get(0);
+        assertEquals("IDLE", idle.path("status").asText(), "it says it has nothing to make");
+        assertTrue(idle.path("reason").isNull());
+        assertEquals(0, check(), "nothing to announce");
+
+        platform.patterns.machines.set(0, new PatternPlatform.MachineState("m-gt", block, null, List.of("p1"), false, 0,
+                false, 42, "SUSPEND", null, null));
+        advance(Duration.ofHours(1));
+        assertEquals("DISABLED", json(owner.get(machines)).path("machines").get(0).path("status").asText());
+        assertEquals(0, check(), "switched off on purpose");
+
+        platform.patterns.machines.set(0, new PatternPlatform.MachineState("m-gt", block, null, List.of("p1"), false, 0,
+                false, 42, "WAITING", null, "Not enough energy"));
+        advance(Duration.ofSeconds(10));
+        assertEquals("WORKING", json(owner.get(machines)).path("machines").get(0).path("status").asText(),
+                "it only just said so");
+        advance(Duration.ofMinutes(3));
+        JsonNode stuck = json(owner.get(machines)).path("machines").get(0);
+        assertEquals("STUCK", stuck.path("status").asText(), "no job has to wait for it to be stuck");
+        assertEquals("MACHINE_WAITING", stuck.path("reason").asText());
+        assertEquals("Not enough energy", stuck.path("waitingReason").asText(), "in the machine's own words");
+        assertEquals(1, check());
     }
 
     private void advance(Duration duration) {

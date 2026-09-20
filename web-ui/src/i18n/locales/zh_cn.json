@@ -13,7 +13,10 @@
     "patterns": "样板中心",
     "insights": "资源观测",
     "more": "更多",
-    "alerts": "监控提醒"
+    "alerts": "监控提醒",
+    "machines": "机器状态",
+    "automation": "自动化",
+    "explorer": "网络结构"
   },
   "language": {
     "label": "语言",
@@ -83,7 +86,9 @@
       "DEPLOY_FAILED": "样板供应器未接受该样板，空白样板已退回。",
       "VERIFY_FAILED": "部署后样板供应器中未找到该样板，空白样板已退回。",
       "PROVIDER_NOT_RENAMABLE": "这种样板供应器无法通过 ME Control Center 改名。"
-    }
+    },
+    "pageTitle": "此页面无法显示",
+    "pageBody": "绘制页面时出错。ME Control Center 的其他部分仍可正常使用；请重试，或反馈下方的错误信息。"
   },
   "pair": {
     "title": "配对此浏览器",
@@ -447,7 +452,14 @@
     "noneHint": "搭建一个连接到网络的合成 CPU 多方块结构。",
     "summary": "共 {{total}} 个 · {{busy}} 个忙碌",
     "live": "实时",
-    "viewAll": "全部合成 CPU"
+    "viewAll": "全部合成 CPU",
+    "unknownInitiator": "未知",
+    "unpaired": "未配对",
+    "origin": {
+      "WEB": "网页下单",
+      "IN_GAME": "游戏内下单",
+      "UNKNOWN": "机器或未记录"
+    }
   },
   "patterns": {
     "subtitle": "创建、编码并部署样板",
@@ -793,7 +805,8 @@
       "CRAFT_FAILED": "我的合成失败",
       "RESOURCE_DROP": "数量下降超过",
       "RESOURCE_RISE": "数量上涨超过",
-      "CRAFT_STALLED": "我的合成停滞超过"
+      "CRAFT_STALLED": "我的合成停滞超过",
+      "MACHINE_STUCK": "机器卡住超过"
     },
     "message": {
       "RESOURCE_BELOW": {
@@ -835,6 +848,10 @@
       "CRAFT_STALLED": {
         "TRIGGERED": "合成 {{value}} × {{resource}} 已 {{threshold}} 分钟没有进展",
         "RESOLVED": "合成 {{value}} × {{resource}} 恢复进展"
+      },
+      "MACHINE_STUCK": {
+        "TRIGGERED": "{{resource}} 已 {{threshold}} 分钟没有进展（合成在等它）",
+        "RESOLVED": "{{resource}} 恢复工作"
       }
     },
     "minutes_one": "{{count}} 分钟",
@@ -844,5 +861,160 @@
     "thresholdMinutes": "无进展分钟数",
     "thresholdChange": "变化百分比",
     "windowLabel": "与多少分钟前相比"
+  },
+  "tree": {
+    "open": "合成树",
+    "title": "合成树 · {{cpu}}",
+    "elapsed": "已运行 {{time}}",
+    "partial": "ME Control Center 在任务开始后才看到它，此前已完成的步骤不会显示。",
+    "stale": "无法刷新，显示的是上一次的状态。",
+    "now": "当前进行",
+    "nothingNow": "当前没有正在合成或等待机器的步骤。",
+    "hideFinished": "隐藏已完成的步骤",
+    "allFinished": "所有步骤都已完成。",
+    "zoom": "缩放",
+    "zoomIn": "放大",
+    "zoomOut": "缩小",
+    "reset": "重置",
+    "runs": "{{done}}/{{total}} 次 × {{perRun}}",
+    "perRun": "每次 {{amount}}，来自存储",
+    "inMachines": "机器中 {{amount}}",
+    "machines": "机器",
+    "status": {
+      "CRAFTING": "合成中",
+      "WAITING_MACHINE": "等待机器空闲",
+      "READY": "就绪",
+      "WAITING_INPUTS": "等待材料",
+      "DONE": "已完成",
+      "FROM_STORAGE": "来自存储"
+    },
+    "explain": {
+      "CRAFTING": "材料已送入机器，正在等待产物",
+      "WAITING_MACHINE": "材料已备齐，但持有该样板的机器都在忙",
+      "READY": "材料已备齐，将随 CPU 下一次操作发出",
+      "WAITING_INPUTS": "等待下层步骤制作所需材料",
+      "DONE": "所有次数都已完成",
+      "FROM_STORAGE": "任务开始时从存储中取出"
+    }
+  },
+  "machines": {
+    "subtitle": "样板供应器背后的机器，以及它们是否跟得上。",
+    "summary_one": "{{total}} 台机器 · 合成在等它时 {{minutes}} 分钟无变化即视为卡住",
+    "summary_other": "{{total}} 台机器 · 合成在等它时 {{minutes}} 分钟无变化即视为卡住",
+    "none": "没有找到机器",
+    "noneHint": "样板供应器朝向的机器，或样板总成所在的多方块机器会显示在这里。只读取已加载的区块。",
+    "unknownBlock": "未知方块",
+    "lastChange": "上次变化",
+    "reported": "机器自报",
+    "providers": "供应器",
+    "awaited": "有合成在等它",
+    "pending_one": "{{count}} 组物品未被接收",
+    "pending_other": "{{count}} 组物品未被接收",
+    "alertAdd": "机器卡住 {{minutes}} 分钟时提醒我",
+    "alertOn": "机器卡住 {{minutes}} 分钟时会提醒你。",
+    "filter": {
+      "ALL": "全部",
+      "STUCK": "卡住",
+      "WAITING": "等待",
+      "WORKING": "工作中",
+      "IDLE": "空闲",
+      "DISABLED": "已关闭"
+    },
+    "status": {
+      "STUCK": "卡住",
+      "WAITING": "等待",
+      "WORKING": "工作中",
+      "IDLE": "空闲",
+      "DISABLED": "已关闭"
+    },
+    "reason": {
+      "OUTPUT_BLOCKED": "供应器里有它不接收的物品（已满或输入不对）。",
+      "MACHINE_WAITING": "机器自报无法运行。",
+      "NO_CHANGE": "机器里有材料，但一直没有变化。"
+    },
+    "reportedStatus": {
+      "WORKING": "工作中",
+      "WAITING": "等待",
+      "IDLE": "空闲",
+      "SUSPEND": "已关闭"
+    }
+  },
+  "automation": {
+    "subtitle": "自动保持资源库存。",
+    "rules": "保持库存规则",
+    "rulesHint": "当资源低于最小值时，ME 控制中心会自动合成到目标数量。规则属于该网络，需要管理者角色。",
+    "serverOff": "服务器未启用",
+    "serverOffHint": "服务器管理员需在 mecc.toml 中设置 automation.auto_restock_enabled = true。在此之前规则会被保存，但不会运行。",
+    "noRules": "暂无规则。",
+    "newRule": "新建规则",
+    "resource": "资源",
+    "choose": "选择",
+    "change": "更换",
+    "minimum": "最小值",
+    "minimumIn": "最小值（{{unit}}）",
+    "target": "补充到",
+    "targetIn": "补充到（{{unit}}）",
+    "cooldownLabel": "冷却时间（分钟）",
+    "add": "添加规则",
+    "addHint": "新规则默认为关闭状态。",
+    "full": "该网络的规则数量已达上限。",
+    "range": "{{minimum}} → {{target}}",
+    "stored": "当前库存：{{amount}}",
+    "cooldown": "冷却 {{minutes}} 分钟",
+    "cpu": "CPU {{cpu}}",
+    "createdBy": "以 {{player}} 的身份合成",
+    "lastRun": "上次运行 {{time}}",
+    "failures_one": "{{count}} 次失败（{{error}}）",
+    "failures_other": "{{count}} 次失败（{{error}}）",
+    "enable": "启用",
+    "disable": "停用",
+    "delete": "删除",
+    "disabled": "已关闭",
+    "backingOff": "退避中",
+    "below": "低于最小值",
+    "ok": "库存充足",
+    "stopAll": "停止全部自动化",
+    "stopAllHint": "一次性关闭该网络的所有规则。",
+    "requesters": "游戏内的 ME 请求器",
+    "requestersHint": "这个网络里的请求器方块做的是同样的保库存工作。在这里删除一条请求，等同于在游戏里把它从方块中取出；其余修改仍需在游戏内进行。",
+    "noRequesters": "没有请求器在请求任何东西。",
+    "requester": "请求器",
+    "requesterOffline": "离线",
+    "keepStocked": "保持 {{amount}}",
+    "batch": "每次请求 {{amount}}",
+    "requestStatus": {
+      "IDLE": "空闲",
+      "MISSING": "无法合成",
+      "REQUEST": "请求中",
+      "PLAN": "规划中",
+      "LINK": "合成中",
+      "EXPORT": "输送中"
+    }
+  },
+  "explorer": {
+    "subtitle": "查看该网络由什么组成。",
+    "summary_one": "{{nodes}} 个设备 · {{offline}} 个离线",
+    "summary_other": "{{nodes}} 个设备 · {{offline}} 个离线",
+    "channelsUsed_one": "已使用 {{count}} 条通道",
+    "channelsUsed_other": "已使用 {{count}} 条通道",
+    "channels_one": "{{count}} 条通道",
+    "channels_other": "{{count}} 条通道",
+    "idlePower": "空载 {{power}} AE/t",
+    "offline_one": "{{count}} 个离线",
+    "offline_other": "{{count}} 个离线",
+    "unknownDevice": "未知设备",
+    "noLocations": "这些设备没有报告坐标。",
+    "showAll": "显示全部 {{count}} 个坐标",
+    "truncated": "仅显示前若干个坐标。",
+    "kind": {
+      "ALL": "全部",
+      "STORAGE": "存储",
+      "CRAFTING": "合成 CPU",
+      "PATTERN_PROVIDER": "样板供应器",
+      "INTERFACE": "接口",
+      "ACCESS_POINT": "无线接入点",
+      "CONTROLLER": "控制器",
+      "OTHER": "其他设备"
+    }
   }
 }

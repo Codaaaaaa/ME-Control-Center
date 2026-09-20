@@ -23,7 +23,7 @@ class NetworkAccessTest {
                 NetworkCapability.VIEW_NETWORK, NetworkCapability.VIEW_TERMINAL, NetworkCapability.VIEW_CHARTS,
                 NetworkCapability.MANAGE_WATCHLIST, NetworkCapability.SUBMIT_CRAFT, NetworkCapability.CANCEL_OWN_CRAFT,
                 NetworkCapability.CANCEL_ANY_CRAFT, NetworkCapability.PATTERN_STUDIO, NetworkCapability.DEPLOY_PATTERNS,
-                NetworkCapability.PROVIDER_SETTINGS));
+                NetworkCapability.PROVIDER_SETTINGS, NetworkCapability.MANAGE_AUTOMATION));
         assertCapabilities(NetworkRole.OWNER, EnumSet.allOf(NetworkCapability.class));
     }
 

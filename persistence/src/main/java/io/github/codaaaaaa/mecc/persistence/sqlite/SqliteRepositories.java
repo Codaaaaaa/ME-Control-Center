@@ -2,6 +2,7 @@ package io.github.codaaaaaa.mecc.persistence.sqlite;
 
 import io.github.codaaaaaa.mecc.core.alerts.AlertRepository;
 import io.github.codaaaaaa.mecc.core.audit.AuditRepository;
+import io.github.codaaaaaa.mecc.core.automation.RestockRepository;
 import io.github.codaaaaaa.mecc.core.auth.DeviceRepository;
 import io.github.codaaaaaa.mecc.core.crafting.CraftingOrderRepository;
 import io.github.codaaaaaa.mecc.core.crafting.SavedOrderRepository;
@@ -25,6 +26,7 @@ final class SqliteRepositories implements Repositories {
     private final SampleRepository samples;
     private final SavedOrderRepository savedOrders;
     private final AlertRepository alerts;
+    private final RestockRepository restock;
 
     SqliteRepositories(Jdbc jdbc) {
         this.users = new SqliteUserRepository(jdbc);
@@ -38,6 +40,7 @@ final class SqliteRepositories implements Repositories {
         this.samples = new SqliteSampleRepository(jdbc);
         this.savedOrders = new SqliteSavedOrderRepository(jdbc);
         this.alerts = new SqliteAlertRepository(jdbc);
+        this.restock = new SqliteRestockRepository(jdbc);
     }
 
     @Override
@@ -93,5 +96,10 @@ final class SqliteRepositories implements Repositories {
     @Override
     public AlertRepository alerts() {
         return alerts;
+    }
+
+    @Override
+    public RestockRepository restock() {
+        return restock;
     }
 }

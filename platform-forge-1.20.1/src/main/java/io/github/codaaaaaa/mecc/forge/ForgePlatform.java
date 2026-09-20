@@ -132,14 +132,20 @@ final class ForgePlatform implements MeccPlatform {
     public Optional<InputStream> openBundledResource(String path) {
         // Resolve through Forge's mod file system: works for production jars and merged dev sources.
         Path resource = modFile.getFile().findResource(path.split("/"));
-        if (!Files.isRegularFile(resource)) {
-            return Optional.empty();
+        if (Files.isRegularFile(resource)) {
+            try {
+                return Optional.of(Files.newInputStream(resource));
+            } catch (IOException e) {
+                throw new UncheckedIOException("Could not open bundled resource " + path, e);
+            }
         }
-        try {
-            return Optional.of(Files.newInputStream(resource));
-        } catch (IOException e) {
-            throw new UncheckedIOException("Could not open bundled resource " + path, e);
-        }
+        // IDE runs may leave generated resources (the web UI) out of the mod's file system but on the classpath.
+        return Optional.ofNullable(ForgePlatform.class.getClassLoader().getResourceAsStream(path));
+    }
+
+    @Override
+    public String bundleLocation() {
+        return modFile.getFile().getFilePath().toString();
     }
 
     @Override

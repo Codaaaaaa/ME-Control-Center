@@ -50,6 +50,12 @@ public interface CraftingService {
     CompletionStage<OrderView> submit(Session session, UUID networkId, String planId, String cpuId, OrderSource source,
                                       String locale);
 
+    /**
+     * The crafting tree of a CPU's running job: every step and where it stands. Requires {@code VIEW_NETWORK}. Fails with
+     * {@code CPU_NOT_FOUND}, or {@code NOT_RUNNING} when the CPU is idle or its job cannot be read.
+     */
+    CompletionStage<CraftingViews.JobTreeView> jobTree(Session session, UUID networkId, String cpuId, String locale);
+
     /** Orders of the network, newest first. Requires {@code VIEW_NETWORK}. */
     CompletionStage<OrderPage> orders(Session session, UUID networkId, OrderFilter filter, int limit, String cursor,
                                       String locale);

@@ -11,11 +11,13 @@ export function CpuCard({
   assetVersion,
   onCancel,
   cancelling,
+  onShowTree,
 }: {
   cpu: Cpu;
   assetVersion: string;
   onCancel?: () => void;
   cancelling?: boolean;
+  onShowTree?: () => void;
 }) {
   const { t } = useTranslation();
   const offline = cpu.online === false;
@@ -61,14 +63,21 @@ export function CpuCard({
             </div>
             <div>
               <dt>{t('cpus.initiator')}</dt>
-              <dd>{job.initiator ? job.initiator.playerName ?? t('common.unknownPlayer') : t('cpus.inGame')}</dd>
+              <dd className="cpu-initiator">
+                <span>{job.initiator ? job.initiator.playerName ?? t('common.unknownPlayer') : t('cpus.unknownInitiator')}</span>
+                <Badge tone={job.origin === 'WEB' ? 'accent' : 'neutral'}>{t(`cpus.origin.${job.origin}`)}</Badge>
+                {job.origin === 'IN_GAME' && !job.paired ? <Badge tone="neutral">{t('cpus.unpaired')}</Badge> : null}
+              </dd>
             </div>
           </dl>
-          {job.cancellable && onCancel ? (
-            <div className="order-actions">
+          <div className="order-actions">
+            {onShowTree ? (
+              <button type="button" className="button button-small" onClick={onShowTree}>{t('tree.open')}</button>
+            ) : null}
+            {job.cancellable && onCancel ? (
               <ConfirmButton label={t('crafting.cancel')} onConfirm={onCancel} disabled={cancelling} />
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
       ) : (
         <p className="muted cpu-idle">{offline ? t('cpus.offlineHint') : t('cpus.idleHint')}</p>

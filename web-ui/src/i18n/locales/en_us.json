@@ -13,7 +13,10 @@
     "patterns": "Patterns",
     "insights": "Insights",
     "more": "More",
-    "alerts": "Alerts"
+    "alerts": "Alerts",
+    "machines": "Machines",
+    "automation": "Automation",
+    "explorer": "Explorer"
   },
   "language": {
     "label": "Language",
@@ -83,7 +86,9 @@
       "DEPLOY_FAILED": "The pattern provider did not accept the pattern. The Blank Pattern was returned.",
       "VERIFY_FAILED": "The pattern provider did not hold the pattern afterwards. The Blank Pattern was returned.",
       "PROVIDER_NOT_RENAMABLE": "This kind of pattern provider cannot be renamed from ME Control Center."
-    }
+    },
+    "pageTitle": "This page could not be shown",
+    "pageBody": "Something went wrong while drawing it. The rest of ME Control Center still works; try again, or report the message below."
   },
   "pair": {
     "title": "Pair this browser",
@@ -447,7 +452,14 @@
     "noneHint": "Build a crafting CPU multiblock connected to the network.",
     "summary": "{{total}} total · {{busy}} busy",
     "live": "live",
-    "viewAll": "All crafting CPUs"
+    "viewAll": "All crafting CPUs",
+    "unknownInitiator": "Unknown",
+    "unpaired": "Not paired",
+    "origin": {
+      "WEB": "Web order",
+      "IN_GAME": "In game",
+      "UNKNOWN": "Machine or unrecorded"
+    }
   },
   "patterns": {
     "subtitle": "Create, encode, and deploy patterns",
@@ -793,7 +805,8 @@
       "CRAFT_FAILED": "My craft failed",
       "RESOURCE_DROP": "Amount dropped by",
       "RESOURCE_RISE": "Amount rose by",
-      "CRAFT_STALLED": "My craft made no progress for"
+      "CRAFT_STALLED": "My craft made no progress for",
+      "MACHINE_STUCK": "A machine is stuck for"
     },
     "message": {
       "RESOURCE_BELOW": {
@@ -835,6 +848,10 @@
       "CRAFT_STALLED": {
         "TRIGGERED": "Crafting {{value}} × {{resource}} made no progress for {{threshold}} min",
         "RESOLVED": "Crafting {{value}} × {{resource}} is progressing again"
+      },
+      "MACHINE_STUCK": {
+        "TRIGGERED": "{{resource}} made no progress for {{threshold}} min while a craft waits for it",
+        "RESOLVED": "{{resource}} is working again"
       }
     },
     "minutes_one": "{{count}} min",
@@ -844,5 +861,160 @@
     "thresholdMinutes": "Minutes without progress",
     "thresholdChange": "Change in percent",
     "windowLabel": "Compared with minutes ago"
+  },
+  "tree": {
+    "open": "Crafting tree",
+    "title": "Crafting tree · {{cpu}}",
+    "elapsed": "Running for {{time}}",
+    "partial": "ME Control Center first saw this job after it had started; steps that finished before then are not shown.",
+    "stale": "Could not refresh; showing the last state.",
+    "now": "Right now",
+    "nothingNow": "Nothing is being crafted or waiting for a machine at the moment.",
+    "hideFinished": "Hide finished steps",
+    "allFinished": "Every step is finished.",
+    "zoom": "Zoom",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "reset": "Reset",
+    "runs": "{{done}}/{{total}} runs × {{perRun}}",
+    "perRun": "{{amount}} per run, from storage",
+    "inMachines": "{{amount}} in machines",
+    "machines": "Machines",
+    "status": {
+      "CRAFTING": "Crafting",
+      "WAITING_MACHINE": "Waiting for a machine",
+      "READY": "Ready",
+      "WAITING_INPUTS": "Waiting for inputs",
+      "DONE": "Done",
+      "FROM_STORAGE": "From storage"
+    },
+    "explain": {
+      "CRAFTING": "inputs were sent to a machine; waiting for the result",
+      "WAITING_MACHINE": "inputs are ready, but every machine with this pattern is busy",
+      "READY": "inputs are ready; goes out with the CPU's next operation",
+      "WAITING_INPUTS": "waiting for the steps below to make its inputs",
+      "DONE": "all runs are done",
+      "FROM_STORAGE": "taken from storage when the job started"
+    }
+  },
+  "machines": {
+    "subtitle": "The machines behind your pattern providers, and whether they keep up.",
+    "summary_one": "{{total}} machine · stuck after {{minutes}} min without change while a craft waits for it",
+    "summary_other": "{{total}} machines · stuck after {{minutes}} min without change while a craft waits for it",
+    "none": "No machines found",
+    "noneHint": "Machines appear here when a pattern provider faces them, or when a pattern buffer is part of them. Only loaded chunks are read.",
+    "unknownBlock": "Unknown block",
+    "lastChange": "Last change",
+    "reported": "Machine says",
+    "providers": "Providers",
+    "awaited": "A craft waits for it",
+    "pending_one": "{{count}} stack not accepted",
+    "pending_other": "{{count}} stacks not accepted",
+    "alertAdd": "Alert me when a machine is stuck for {{minutes}} min",
+    "alertOn": "You are alerted when a machine is stuck for {{minutes}} min.",
+    "filter": {
+      "ALL": "All",
+      "STUCK": "Stuck",
+      "WAITING": "Waiting",
+      "WORKING": "Working",
+      "IDLE": "Idle",
+      "DISABLED": "Off"
+    },
+    "status": {
+      "STUCK": "Stuck",
+      "WAITING": "Waiting",
+      "WORKING": "Working",
+      "IDLE": "Idle",
+      "DISABLED": "Off"
+    },
+    "reason": {
+      "OUTPUT_BLOCKED": "Its provider holds items it does not accept (full, or the wrong input).",
+      "MACHINE_WAITING": "The machine reports it cannot run.",
+      "NO_CHANGE": "It holds inputs, but nothing changes."
+    },
+    "reportedStatus": {
+      "WORKING": "Working",
+      "WAITING": "Waiting",
+      "IDLE": "Idle",
+      "SUSPEND": "Switched off"
+    }
+  },
+  "automation": {
+    "subtitle": "Keep resources in stock automatically.",
+    "rules": "Keep Stock rules",
+    "rulesHint": "When a resource falls below its minimum, ME Control Center crafts it back up to the target. Rules belong to the network and need the Manager role.",
+    "serverOff": "Off on this server",
+    "serverOffHint": "A server admin has to set automation.auto_restock_enabled = true in mecc.toml. Until then rules are kept but never run.",
+    "noRules": "No rules yet.",
+    "newRule": "New rule",
+    "resource": "Resource",
+    "choose": "Choose",
+    "change": "Change",
+    "minimum": "Minimum",
+    "minimumIn": "Minimum ({{unit}})",
+    "target": "Craft up to",
+    "targetIn": "Craft up to ({{unit}})",
+    "cooldownLabel": "Cooldown (minutes)",
+    "add": "Add rule",
+    "addHint": "New rules start switched off.",
+    "full": "This network has reached its rule limit.",
+    "range": "{{minimum}} → {{target}}",
+    "stored": "In stock: {{amount}}",
+    "cooldown": "Cooldown {{minutes}} min",
+    "cpu": "CPU {{cpu}}",
+    "createdBy": "Crafts as {{player}}",
+    "lastRun": "Last run {{time}}",
+    "failures_one": "{{count}} failure ({{error}})",
+    "failures_other": "{{count}} failures ({{error}})",
+    "enable": "Enable",
+    "disable": "Disable",
+    "delete": "Delete",
+    "disabled": "Off",
+    "backingOff": "Backing off",
+    "below": "Below minimum",
+    "ok": "In stock",
+    "stopAll": "Stop all automation",
+    "stopAllHint": "Switches every rule of this network off at once.",
+    "requesters": "ME Requesters in game",
+    "requestersHint": "Requester blocks standing in this network keep stock the same way. Emptying a request here is the same as taking it out of the block in game; changing one otherwise stays in game.",
+    "noRequesters": "No requester is asking for anything.",
+    "requester": "Requester",
+    "requesterOffline": "Offline",
+    "keepStocked": "Keeps {{amount}}",
+    "batch": "Asks for {{amount}} at a time",
+    "requestStatus": {
+      "IDLE": "Idle",
+      "MISSING": "Cannot craft",
+      "REQUEST": "Requesting",
+      "PLAN": "Planning",
+      "LINK": "Crafting",
+      "EXPORT": "Delivering"
+    }
+  },
+  "explorer": {
+    "subtitle": "What this network is built from.",
+    "summary_one": "{{nodes}} device · {{offline}} offline",
+    "summary_other": "{{nodes}} devices · {{offline}} offline",
+    "channelsUsed_one": "{{count}} channel in use",
+    "channelsUsed_other": "{{count}} channels in use",
+    "channels_one": "{{count}} channel",
+    "channels_other": "{{count}} channels",
+    "idlePower": "{{power}} AE/t idle",
+    "offline_one": "{{count}} offline",
+    "offline_other": "{{count}} offline",
+    "unknownDevice": "Unknown device",
+    "noLocations": "No positions reported for these devices.",
+    "showAll": "Show all {{count}} positions",
+    "truncated": "Only the first positions are shown.",
+    "kind": {
+      "ALL": "All",
+      "STORAGE": "Storage",
+      "CRAFTING": "Crafting CPUs",
+      "PATTERN_PROVIDER": "Pattern providers",
+      "INTERFACE": "Interfaces",
+      "ACCESS_POINT": "Wireless access points",
+      "CONTROLLER": "Controllers",
+      "OTHER": "Other devices"
+    }
   }
 }

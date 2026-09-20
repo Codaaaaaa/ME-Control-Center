@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Order } from '../../api/crafting';
 import { useOrder } from '../../api/queries';
-import { formatElapsed, formatRelative } from '../../lib/format';
+import { formatDateTime, formatElapsed, formatRelative } from '../../lib/format';
 import { Badge } from '../Card';
 import { ConfirmButton } from '../ConfirmButton';
 import { ORDER_TONE, ProgressBar, ResourceLabelView } from './CraftingBits';
@@ -54,7 +54,7 @@ export function OrderCard({
         </div>
         <div>
           <dt>{t('crafting.created')}</dt>
-          <dd title={new Date(order.createdAt).toLocaleString(locale.replace('_', '-'))}>{formatRelative(order.createdAt, locale)}</dd>
+          <dd title={formatDateTime(order.createdAt, locale)}>{formatRelative(order.createdAt, locale)}</dd>
         </div>
         <div>
           <dt>{running ? t('crafting.elapsed') : t('crafting.duration')}</dt>
@@ -96,7 +96,7 @@ function OrderHistory({ networkId, orderId }: { networkId: string; orderId: stri
     <ol className="order-history">
       {detail.data.events.map((event, index) => (
         <li key={index}>
-          <time dateTime={event.at}>{new Date(event.at).toLocaleString(i18n.language.replace('_', '-'))}</time>
+          <time dateTime={event.at}>{formatDateTime(event.at, i18n.language)}</time>
           <span>{t(`crafting.event.${event.type}`, { defaultValue: event.type })}</span>
           {event.actor ? <span className="muted">{event.actor.playerName ?? t('common.unknownPlayer')}</span> : null}
         </li>

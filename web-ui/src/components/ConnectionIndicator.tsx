@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useStatusQuery } from '../hooks/useStatusQuery';
+import { formatTime } from '../lib/format';
 
 /** Shows whether the browser can currently reach the ME Control Center server. */
 export function ConnectionIndicator() {
@@ -10,7 +11,7 @@ export function ConnectionIndicator() {
   const label = isPending ? t('connection.checking') : isError ? t('connection.offline') : t('connection.online');
   const updated =
     dataUpdatedAt > 0
-      ? t('connection.updated', { time: new Date(dataUpdatedAt).toLocaleTimeString(i18n.language.replace('_', '-')) })
+      ? t('connection.updated', { time: formatTime(dataUpdatedAt, i18n.language) })
       : undefined;
 
   return (

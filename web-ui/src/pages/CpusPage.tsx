@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCpus, useCraftingMutations, useNetworks } from '../api/queries';
 import { CpuCard } from '../components/crafting/CpuCard';
+import { JobTreeDialog } from '../components/crafting/JobTreeDialog';
 import { NetworkPicker } from '../components/network/NetworkPicker';
 import { EmptyNotice, ErrorNotice, FormError, LoadingNotice } from '../components/StateNotice';
 import { useLiveNetwork } from '../hooks/useLiveNetwork';
@@ -41,6 +43,7 @@ function Cpus({ networkId }: { networkId: string }) {
   const locale = i18n.language;
   const live = useLiveNetwork(networkId, locale);
   const cpus = useCpus(networkId, locale, live);
+  const [treeCpu, setTreeCpu] = useState<{ id: string; name: string } | null>(null);
   const mutations = useCraftingMutations(networkId, locale);
 
   if (cpus.isPending) {
@@ -69,9 +72,13 @@ function Cpus({ networkId }: { networkId: string }) {
             assetVersion={cpus.data.assetVersion}
             cancelling={mutations.cancelCpuJob.isPending}
             onCancel={() => mutations.cancelCpuJob.mutate({ cpuId: cpu.id, jobId: cpu.job?.jobId ?? null })}
+            onShowTree={() => setTreeCpu({ id: cpu.id, name: cpu.name ?? t('cpus.unnamed') })}
           />
         ))}
       </div>
+      {treeCpu ? (
+        <JobTreeDialog networkId={networkId} cpuId={treeCpu.id} cpuName={treeCpu.name} onClose={() => setTreeCpu(null)} />
+      ) : null}
     </>
   );
 }

@@ -25,7 +25,7 @@ import { NetworkPicker } from '../components/network/NetworkPicker';
 import { ResourcePicker } from '../components/patterns/ResourcePicker';
 import { EmptyNotice, ErrorNotice, FormError, LoadingNotice } from '../components/StateNotice';
 import { exactAmount } from '../lib/amount';
-import { formatRelative } from '../lib/format';
+import { formatDateTime, formatRelative } from '../lib/format';
 import { useAlertPrefs } from '../stores/alertPrefs';
 import { resolveSelectedNetwork, useSelectedNetwork } from '../stores/selectedNetwork';
 
@@ -224,7 +224,7 @@ function NewRule({ networkId, full }: { networkId: string; full: boolean }) {
             const next = event.target.value as AlertType;
             setType(next);
             setCooldown(ALERT_SHAPE[next].cooldown ? '30' : '0');
-            setThresholdText(next === 'CRAFT_STALLED' ? '15' : '');
+            setThresholdText(next === 'CRAFT_STALLED' ? '15' : next === 'MACHINE_STUCK' ? '2' : '');
           }}>
             {ALERT_TYPES.map((name) => <option key={name} value={name}>{t(`alerts.types.${name}`)}</option>)}
           </select>
@@ -306,7 +306,7 @@ export function AlertEventRow({ event, assetVersion }: { event: AlertEvent; asse
         <div className="list-meta">
           {event.resource ? <ResourceLabelView resource={event.resource} assetVersion={assetVersion} size={20} /> : null}
           {event.networkName ? <span>{event.networkName}</span> : null}
-          <time dateTime={event.at} title={new Date(event.at).toLocaleString(locale.replace('_', '-'))}>
+          <time dateTime={event.at} title={formatDateTime(event.at, locale)}>
             {formatRelative(event.at, locale)}
           </time>
         </div>

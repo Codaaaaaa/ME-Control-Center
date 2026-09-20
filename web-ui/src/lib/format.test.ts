@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { formatBytes, formatElapsed, formatEnergy, formatMillis, formatRelative, formatUptime, percentOf, ticksPerSecond } from './format';
+import {
+  formatBytes,
+  formatDateTime,
+  formatElapsed,
+  formatEnergy,
+  formatMillis,
+  formatRelative,
+  formatTime,
+  formatUptime,
+  percentOf,
+  ticksPerSecond,
+} from './format';
 
 describe('formatUptime', () => {
   it.each([
@@ -74,5 +85,14 @@ describe('formatElapsed', () => {
     expect(formatElapsed(872_000)).toBe('14:32');
     expect(formatElapsed(3_723_000)).toBe('1:02:03');
     expect(formatElapsed(-5)).toBe('0:00');
+  });
+});
+
+describe('formatDateTime', () => {
+  it('accepts the UI locale codes, which are not BCP 47 tags', () => {
+    // toLocaleString('zh_cn') throws a RangeError; this blanked the audit log pages.
+    expect(() => formatDateTime('2026-09-18T12:00:00Z', 'zh_cn')).not.toThrow();
+    expect(() => formatDateTime('2026-09-18T12:00:00Z', 'en_us')).not.toThrow();
+    expect(() => formatTime(0, 'zh_cn')).not.toThrow();
   });
 });

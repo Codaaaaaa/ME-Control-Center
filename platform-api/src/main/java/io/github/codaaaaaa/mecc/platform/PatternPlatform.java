@@ -102,6 +102,44 @@ public interface PatternPlatform {
     ProviderChange configure(String gridKey, String providerId, ProviderSettings settings);
 
     /**
+     * The machines the network's pattern containers supply: the blocks AE2 pattern providers push into, and the
+     * multiblocks pattern buffers belong to. Must not load chunks.
+     *
+     * @throws io.github.codaaaaaa.mecc.core.error.MeccException {@code NETWORK_OFFLINE} if the grid no longer exists
+     */
+    @ServerThreadOnly
+    MachineCapture captureMachines(String gridKey);
+
+    /**
+     * What can be told about one machine at one moment; its status over time is worked out from successive captures.
+     *
+     * @param id           position-based, stable while the machine stays in place
+     * @param block        the machine as an item, or {@code null}
+     * @param providers    IDs of the pattern containers supplying it
+     * @param awaited      a crafting CPU of the network waits for something this machine's patterns make
+     * @param pendingSends stacks its providers could not push into it yet (it is full or refuses them)
+     * @param contentsHash fingerprint of what it holds, to notice change; {@code 0} when unreadable
+     * @param reported     the machine's own status when it has one (GregTech: {@code WORKING}, {@code WAITING},
+     *                     {@code IDLE}, {@code SUSPEND}), else {@code null}
+     * @param progress     progress of its current operation, 0-1, when it reports one
+     * @param waitingReason why it says it cannot run, in its own words, when it says so
+     */
+    record MachineState(String id, ResourceDescriptor block, BlockLocation location, List<String> providers,
+                        boolean awaited, int pendingSends, boolean hasContents, long contentsHash, String reported,
+                        Double progress, String waitingReason) {
+        public MachineState {
+            Objects.requireNonNull(id, "id");
+            providers = List.copyOf(providers);
+        }
+    }
+
+    record MachineCapture(Instant capturedAt, List<MachineState> machines) {
+        public MachineCapture {
+            machines = List.copyOf(machines);
+        }
+    }
+
+    /**
      * Anything that holds patterns for the network: AE2 pattern providers and the pattern buffers other mods add for
      * their machines (e.g. GregTech multiblock pattern buffers).
      *

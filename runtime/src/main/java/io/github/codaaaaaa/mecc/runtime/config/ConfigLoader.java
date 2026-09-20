@@ -5,6 +5,7 @@ import com.fasterxml.jackson.dataformat.toml.TomlMapper;
 import io.github.codaaaaaa.mecc.core.config.AlertsConfig;
 import io.github.codaaaaaa.mecc.core.config.AnalyticsConfig;
 import io.github.codaaaaaa.mecc.core.config.AssetsConfig;
+import io.github.codaaaaaa.mecc.core.config.AutomationConfig;
 import io.github.codaaaaaa.mecc.core.config.ConfigValidationException;
 import io.github.codaaaaaa.mecc.core.config.CraftingConfig;
 import io.github.codaaaaaa.mecc.core.config.MeccConfig;
@@ -40,20 +41,23 @@ public final class ConfigLoader {
     public static final String HOST_PROPERTY = "mecc.web.host";
     public static final String PORT_PROPERTY = "mecc.web.port";
 
-    private static final Map<String, Set<String>> KNOWN_KEYS = Map.of(
-            "web", Set.of("enabled", "host", "port", "max_threads", "public_base_url"),
-            "security", Set.of("pairing_key_ttl_seconds", "trusted_proxies", "admin_override", "admin_op_level",
+    private static final Map<String, Set<String>> KNOWN_KEYS = Map.ofEntries(
+            Map.entry("web", Set.of("enabled", "host", "port", "max_threads", "public_base_url")),
+            Map.entry("security", Set.of("pairing_key_ttl_seconds", "trusted_proxies", "admin_override", "admin_op_level",
                     "require_https_cookie", "allowed_origins", "rate_limit_requests_per_minute",
-                    "rate_limit_writes_per_minute"),
-            "networks", Set.of("discovery_interval_seconds"),
-            "resources", Set.of("snapshot_max_age_seconds"),
-            "assets", Set.of("download_vanilla_assets"),
-            "crafting", Set.of("max_craft_amount", "calculation_timeout_seconds"),
-            "patterns", Set.of("max_pattern_inputs", "max_pattern_outputs", "max_drafts_per_user"),
-            "analytics", Set.of("enabled", "sample_interval_seconds", "raw_retention_hours", "one_minute_retention_days",
-                    "five_minute_retention_days", "one_hour_retention_days", "max_watchlist_entries_per_user"),
-            "alerts", Set.of("enabled", "check_interval_seconds", "webhooks_enabled", "allow_private_webhook_targets",
-                    "max_rules_per_user"));
+                    "rate_limit_writes_per_minute")),
+            Map.entry("networks", Set.of("discovery_interval_seconds")),
+            Map.entry("resources", Set.of("snapshot_max_age_seconds")),
+            Map.entry("assets", Set.of("download_vanilla_assets")),
+            Map.entry("crafting", Set.of("max_craft_amount", "calculation_timeout_seconds")),
+            Map.entry("patterns", Set.of("max_pattern_inputs", "max_pattern_outputs", "max_drafts_per_user")),
+            Map.entry("analytics", Set.of("enabled", "sample_interval_seconds", "raw_retention_hours",
+                    "one_minute_retention_days", "five_minute_retention_days", "one_hour_retention_days",
+                    "max_watchlist_entries_per_user")),
+            Map.entry("alerts", Set.of("enabled", "check_interval_seconds", "webhooks_enabled",
+                    "allow_private_webhook_targets", "max_rules_per_user")),
+            Map.entry("automation", Set.of("auto_restock_enabled", "check_interval_seconds",
+                    "max_active_jobs_per_network", "max_rules_per_network")));
 
     static final String DEFAULT_FILE = """
             # ME Control Center configuration.
@@ -164,6 +168,19 @@ public final class ConfigLoader {
             allow_private_webhook_targets = false
             # Alert rules one player may keep across all networks (1-1000).
             max_rules_per_user = 50
+
+            [automation]
+            # Auto Restock / Keep Stock (spec section 25): ME Control Center may craft a resource back up to a
+            # target when its stored amount falls below a minimum. OFF by default, and never enabled by an update:
+            # a server admin turns it on here, and a network Manager still has to create each rule.
+            auto_restock_enabled = false
+            # How often rules are compared against stock, in seconds (15-3600).
+            check_interval_seconds = 60
+            # Automation jobs that may run at the same time on one network (1-64). Jobs a player submitted do not
+            # count; rules never queue a second job for a resource that is already being crafted.
+            max_active_jobs_per_network = 2
+            # Restock rules one network may have (1-500).
+            max_rules_per_network = 50
             """;
 
     private final Path file;
@@ -206,6 +223,7 @@ public final class ConfigLoader {
         Section patterns = section(root, "patterns", problems);
         Section analytics = section(root, "analytics", problems);
         Section alerts = section(root, "alerts", problems);
+        Section automation = section(root, "automation", problems);
 
         WebConfig webDefaults = WebConfig.defaults();
         boolean enabled = web.bool("enabled", webDefaults.enabled());
@@ -277,9 +295,16 @@ public final class ConfigLoader {
                 alerts.bool("allow_private_webhook_targets", alertsDefaults.allowPrivateWebhookTargets()),
                 alerts.integer("max_rules_per_user", alertsDefaults.maxRulesPerUser()));
 
+        AutomationConfig automationDefaults = AutomationConfig.defaults();
+        AutomationConfig automationConfig = new AutomationConfig(
+                automation.bool("auto_restock_enabled", automationDefaults.autoRestockEnabled()),
+                automation.integer("check_interval_seconds", automationDefaults.checkIntervalSeconds()),
+                automation.integer("max_active_jobs_per_network", automationDefaults.maxActiveJobsPerNetwork()),
+                automation.integer("max_rules_per_network", automationDefaults.maxRulesPerNetwork()));
+
         MeccConfig config = new MeccConfig(new WebConfig(enabled, host, port, maxThreads, publicBaseUrl),
                 securityConfig, networksConfig, resourcesConfig, assetsConfig, craftingConfig, patternsConfig,
-                analyticsConfig, alertsConfig);
+                analyticsConfig, alertsConfig, automationConfig);
         if (problems.isEmpty()) {
             problems.addAll(config.validate());
         }

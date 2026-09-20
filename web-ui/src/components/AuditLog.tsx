@@ -3,7 +3,7 @@ import type { AuditEntry } from '../api/admin';
 import { useAuditLog } from '../api/queries';
 import { Badge } from './Card';
 import { EmptyNotice, ErrorNotice, LoadingNotice } from './StateNotice';
-import { formatRelative } from '../lib/format';
+import { formatDateTime, formatRelative } from '../lib/format';
 
 /** Audit log of one network, or of the whole server when `networkId` is null (spec section 35). */
 export function AuditLog({ networkId }: { networkId: string | null }) {
@@ -52,7 +52,7 @@ function AuditRow({ entry, showNetwork }: { entry: AuditEntry; showNetwork: bool
           {entry.adminOverride ? <Badge tone="accent">{t('network.adminOverride')}</Badge> : null}
         </div>
         <div className="list-meta">
-          <time dateTime={entry.at} title={new Date(entry.at).toLocaleString(i18n.language)}>
+          <time dateTime={entry.at} title={formatDateTime(entry.at, i18n.language)}>
             {formatRelative(entry.at, i18n.language)}
           </time>
           <span>{t('audit.by', { name: actor })}</span>

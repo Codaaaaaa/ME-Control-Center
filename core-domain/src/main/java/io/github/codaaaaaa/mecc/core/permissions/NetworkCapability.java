@@ -15,6 +15,7 @@ public enum NetworkCapability {
     PATTERN_STUDIO(NetworkRole.MANAGER),
     DEPLOY_PATTERNS(NetworkRole.MANAGER),
     PROVIDER_SETTINGS(NetworkRole.MANAGER),
+    MANAGE_AUTOMATION(NetworkRole.MANAGER),
     SHARE_NETWORK(NetworkRole.OWNER),
     MANAGE_MEMBERS(NetworkRole.OWNER),
     RENAME_NETWORK(NetworkRole.OWNER),

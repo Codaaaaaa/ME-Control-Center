@@ -6,10 +6,13 @@ import appeng.api.config.Settings;
 import appeng.api.config.YesNo;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.crafting.PatternDetailsHelper;
+import appeng.api.implementations.blockentities.ICraftingMachine;
 import appeng.api.implementations.blockentities.PatternContainerGroup;
 import appeng.api.inventories.InternalInventory;
 import appeng.api.networking.IGrid;
 import appeng.api.networking.IGridNode;
+import appeng.api.networking.crafting.ICraftingCPU;
+import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.api.networking.energy.IEnergyService;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.stacks.AEFluidKey;
@@ -18,6 +21,7 @@ import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.api.storage.MEStorage;
 import appeng.api.storage.StorageHelper;
+import appeng.capabilities.Capabilities;
 import appeng.core.definitions.AEItems;
 import appeng.crafting.pattern.AECraftingPattern;
 import appeng.crafting.pattern.AEProcessingPattern;
@@ -26,6 +30,7 @@ import appeng.crafting.pattern.AEStonecuttingPattern;
 import appeng.helpers.patternprovider.PatternContainer;
 import appeng.helpers.patternprovider.PatternProviderLogic;
 import appeng.helpers.patternprovider.PatternProviderLogicHost;
+import appeng.me.cluster.implementations.CraftingCPUCluster;
 import appeng.menu.AutoCraftingMenu;
 import appeng.parts.AEBasePart;
 import io.github.codaaaaaa.mecc.core.networks.BlockLocation;
@@ -43,11 +48,13 @@ import io.github.codaaaaaa.mecc.platform.ServerThreadOnly;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
@@ -63,8 +70,13 @@ import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.item.crafting.SmithingRecipe;
 import net.minecraft.world.item.crafting.StonecutterRecipe;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fluids.capability.IFluidHandler;
+import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -303,6 +315,198 @@ public final class Ae2PatternPlatform implements PatternPlatform {
                     settings.visibleInTerminal() ? YesNo.YES : YesNo.NO);
         }
         return ProviderChange.CHANGED;
+    }
+
+    // --- machines -----------------------------------------------------------------------------------
+
+    /** A slot count beyond which an inventory is not a machine worth fingerprinting (e.g. a storage block). */
+    private static final int MAX_FINGERPRINT_SLOTS = 256;
+
+    private static final class MachineBuilder {
+        private final String id;
+        private final io.github.codaaaaaa.mecc.core.resources.ResourceDescriptor block;
+        private final BlockLocation location;
+        private final List<String> providers = new ArrayList<>();
+        private boolean awaited;
+        private int pendingSends;
+        private boolean hasContents;
+        private long contentsHash;
+        private GtMachines.Status status;
+
+        private MachineBuilder(String id, io.github.codaaaaaa.mecc.core.resources.ResourceDescriptor block,
+                               BlockLocation location) {
+            this.id = id;
+            this.block = block;
+            this.location = location;
+        }
+
+        private MachineState build() {
+            return new MachineState(id, block, location, providers, awaited, pendingSends, hasContents, contentsHash,
+                    status == null ? null : status.name(), status == null ? null : status.progress(),
+                    status == null ? null : status.waitingReason());
+        }
+    }
+
+    @Override
+    @ServerThreadOnly
+    public MachineCapture captureMachines(String gridKey) {
+        Ae2Support.requireServerThread(server, "PatternPlatform.captureMachines()");
+        IGrid grid = Ae2Support.grid(gridKey);
+        // What crafting CPUs wait for: a machine whose patterns make one of these is expected to be working.
+        Set<AEKey> awaitedKeys = new HashSet<>();
+        for (ICraftingCPU cpu : grid.getCraftingService().getCpus()) {
+            if (cpu instanceof CraftingCPUCluster cluster) {
+                cluster.craftingLogic.getAllWaitingFor(awaitedKeys);
+            }
+        }
+        Map<String, MachineBuilder> machines = new LinkedHashMap<>();
+        for (PatternContainer container : providers(grid).keySet()) {
+            try {
+                PatternContainers.Placement placement = PatternContainers.placement(container);
+                if (placement == null || placement.level() == null) {
+                    continue;
+                }
+                String providerId = providerId(container, placement);
+                boolean awaited = makesAny(container, awaitedKeys);
+                if (container instanceof PatternProviderLogicHost host) {
+                    int pending = Ae2Internals.pendingSends(host.getLogic());
+                    for (PushTarget target : pushTargets(host, placement)) {
+                        MachineBuilder machine = machine(machines, placement.level(), target.pos());
+                        machine.providers.add(providerId);
+                        machine.awaited |= awaited;
+                        // One provider has one send queue: counting it against every side it faces would show the
+                        // same backlog several times over.
+                        machine.pendingSends += pending;
+                        pending = 0;
+                        fingerprint(machine, target.blockEntity(), target.side());
+                        machine.status = GtMachines.status(target.blockEntity());
+                    }
+                } else {
+                    // A pattern buffer: the machine is the multiblock it is part of.
+                    Object controller = PatternContainers.controller(container);
+                    BlockPos pos = controller == null ? null : GtMachines.pos(controller);
+                    if (pos == null || !placement.level().isLoaded(pos)) {
+                        continue;
+                    }
+                    MachineBuilder machine = machine(machines, placement.level(), pos);
+                    machine.providers.add(providerId);
+                    machine.awaited |= awaited;
+                    machine.status = GtMachines.status(controller);
+                }
+            } catch (RuntimeException e) {
+                LOGGER.debug("Could not read the machine of pattern container {}", container, e);
+            }
+        }
+        return new MachineCapture(Instant.now(), machines.values().stream().map(MachineBuilder::build).toList());
+    }
+
+    private MachineBuilder machine(Map<String, MachineBuilder> machines, Level level, BlockPos pos) {
+        String dimension = level.dimension().location().toString();
+        return machines.computeIfAbsent(machineId(level, pos), id -> {
+            Item item = level.getBlockState(pos).getBlock().asItem();
+            return new MachineBuilder(id, item == Items.AIR ? null : storage.describe(AEItemKey.of(item)),
+                    new BlockLocation(dimension, pos.getX(), pos.getY(), pos.getZ()));
+        });
+    }
+
+    /** Position-based, so the crafting tree and the machines page name the same machine the same way. */
+    static String machineId(Level level, BlockPos pos) {
+        return "m" + Ae2Support.shortHash(level.dimension().location() + "@" + pos.getX() + "," + pos.getY() + ","
+                + pos.getZ());
+    }
+
+    /** A block a pattern provider pushes into, and the side it arrives from. */
+    private record PushTarget(BlockPos pos, BlockEntity blockEntity, Direction side) {
+    }
+
+    /**
+     * The machines a pattern provider faces: loaded neighbours it could actually insert into. A provider pushes to
+     * every side it is configured for, and most of those are cables, other providers or whatever else happens to sit
+     * there - none of them are machines.
+     */
+    private static List<PushTarget> pushTargets(PatternProviderLogicHost host, PatternContainers.Placement placement) {
+        List<PushTarget> targets = new ArrayList<>();
+        for (Direction direction : host.getTargets()) {
+            BlockPos pos = placement.pos().relative(direction);
+            if (!placement.level().isLoaded(pos)) {
+                continue;
+            }
+            BlockEntity blockEntity = placement.level().getBlockEntity(pos);
+            Direction side = direction.getOpposite();
+            if (blockEntity != null && accepts(placement.level(), pos, blockEntity, side)) {
+                targets.add(new PushTarget(pos, blockEntity, side));
+            }
+        }
+        return targets;
+    }
+
+    /** Whether a pattern provider could push a pattern into this block at all - what AE2 itself looks for. */
+    private static boolean accepts(Level level, BlockPos pos, BlockEntity blockEntity, Direction side) {
+        return blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER, side).isPresent()
+                || blockEntity.getCapability(ForgeCapabilities.FLUID_HANDLER, side).isPresent()
+                || blockEntity.getCapability(Capabilities.STORAGE, side).isPresent()
+                || ICraftingMachine.of(level, pos, side, blockEntity) != null;
+    }
+
+    /** The ids {@link #captureMachines} gives the machines one pattern container supplies. */
+    static List<String> machineIds(PatternContainer container) {
+        PatternContainers.Placement placement = PatternContainers.placement(container);
+        if (placement == null || placement.level() == null) {
+            return List.of();
+        }
+        if (container instanceof PatternProviderLogicHost host) {
+            return pushTargets(host, placement).stream().map(target -> machineId(placement.level(), target.pos()))
+                    .toList();
+        }
+        Object controller = PatternContainers.controller(container);
+        BlockPos pos = controller == null ? null : GtMachines.pos(controller);
+        return pos == null || !placement.level().isLoaded(pos) ? List.of()
+                : List.of(machineId(placement.level(), pos));
+    }
+
+    private static boolean makesAny(PatternContainer container, Set<AEKey> keys) {
+        if (keys.isEmpty()) {
+            return false;
+        }
+        List<IPatternDetails> patterns = container instanceof PatternProviderLogicHost host
+                ? host.getLogic().getAvailablePatterns()
+                : container instanceof ICraftingProvider provider ? provider.getAvailablePatterns() : List.of();
+        for (IPatternDetails pattern : patterns) {
+            for (GenericStack output : pattern.getOutputs()) {
+                if (output != null && keys.contains(output.what())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** What the machine holds, seen from the provider side: whether anything, and a fingerprint to notice change. */
+    private static void fingerprint(MachineBuilder machine, BlockEntity blockEntity, Direction side) {
+        long hash = 1;
+        boolean contents = false;
+        IItemHandler items = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER, side).resolve().orElse(null);
+        if (items != null && items.getSlots() <= MAX_FINGERPRINT_SLOTS) {
+            for (int slot = 0; slot < items.getSlots(); slot++) {
+                ItemStack stack = items.getStackInSlot(slot);
+                if (!stack.isEmpty()) {
+                    contents = true;
+                    hash = 31 * hash + Objects.hash(slot, stack.getItem(), stack.getCount(), stack.getTag());
+                }
+            }
+        }
+        IFluidHandler fluids = blockEntity.getCapability(ForgeCapabilities.FLUID_HANDLER, side).resolve().orElse(null);
+        if (fluids != null && fluids.getTanks() <= MAX_FINGERPRINT_SLOTS) {
+            for (int tank = 0; tank < fluids.getTanks(); tank++) {
+                FluidStack stack = fluids.getFluidInTank(tank);
+                if (!stack.isEmpty()) {
+                    contents = true;
+                    hash = 31 * hash + Objects.hash(tank, stack.getFluid(), stack.getAmount(), stack.getTag());
+                }
+            }
+        }
+        machine.hasContents |= contents;
+        machine.contentsHash = 31 * machine.contentsHash + (contents ? hash : 0);
     }
 
     // --- building patterns --------------------------------------------------------------------------

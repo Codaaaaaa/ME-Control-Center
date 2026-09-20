@@ -8,6 +8,7 @@ import './styles/terminal.css';
 import './styles/crafting.css';
 import './styles/patterns.css';
 import './styles/insights.css';
+import './styles/tree.css';
 
 const root = document.getElementById('root');
 if (!root) {

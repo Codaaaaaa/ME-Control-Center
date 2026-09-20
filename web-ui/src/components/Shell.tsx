@@ -6,6 +6,7 @@ import { useAlertNotifications } from '../hooks/useAlertNotifications';
 import { useUpdateAvailable } from '../hooks/useUpdateAvailable';
 import { ConnectionIndicator } from './ConnectionIndicator';
 import { LocaleSelect } from './LocaleSelect';
+import { PageErrorBoundary } from './PageErrorBoundary';
 
 export function Shell() {
   const { t } = useTranslation();
@@ -66,7 +67,9 @@ export function Shell() {
             </button>
           </div>
         ) : null}
-        <Outlet />
+        <PageErrorBoundary>
+          <Outlet />
+        </PageErrorBoundary>
       </main>
     </div>
   );
@@ -85,9 +88,12 @@ const NAV: NavEntry[] = [
   { to: '/terminal', label: 'nav.terminal', icon: <TerminalIcon />, primary: true },
   { to: '/crafting', label: 'nav.crafting', icon: <CraftingIcon />, primary: true },
   { to: '/cpus', label: 'nav.cpus', icon: <CpuIcon />, primary: false },
+  { to: '/machines', label: 'nav.machines', icon: <MachinesIcon />, primary: false },
   { to: '/patterns', label: 'nav.patterns', icon: <PatternIcon />, primary: false },
   { to: '/insights', label: 'nav.insights', icon: <InsightsIcon />, primary: true },
   { to: '/alerts', label: 'nav.alerts', icon: <AlertsIcon />, primary: false },
+  { to: '/automation', label: 'nav.automation', icon: <AutomationIcon />, primary: false },
+  { to: '/explorer', label: 'nav.explorer', icon: <ExplorerIcon />, primary: false },
   { to: '/settings', label: 'nav.settings', icon: <SettingsIcon />, primary: false },
 ];
 
@@ -209,6 +215,21 @@ function PatternIcon() {
   );
 }
 
+function MachinesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <path
+        d="M4 20V9l5 3V9l5 3V6l6 3v11H4zM8 16h2M13 16h2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function AlertsIcon() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
@@ -235,6 +256,39 @@ function InsightsIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function AutomationIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <path
+        d="M4 12a8 8 0 0 1 13.7-5.7M20 12a8 8 0 0 1-13.7 5.7M17 3v4h-4M7 21v-4h4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ExplorerIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <path
+        d="M12 7V4M12 20v-3M12 9.5 5 13M12 9.5 19 13"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <circle cx="12" cy="8.5" r="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="4" cy="14.5" r="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="20" cy="14.5" r="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="12" cy="19" r="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
     </svg>
   );
 }

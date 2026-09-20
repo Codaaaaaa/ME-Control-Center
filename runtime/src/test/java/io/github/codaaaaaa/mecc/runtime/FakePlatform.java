@@ -8,6 +8,7 @@ import io.github.codaaaaaa.mecc.core.networks.DiscoverySnapshot.ObservedAnchor;
 import io.github.codaaaaaa.mecc.core.networks.GridStatus;
 import io.github.codaaaaaa.mecc.core.assets.AssetPack;
 import io.github.codaaaaaa.mecc.core.error.ErrorCode;
+import io.github.codaaaaaa.mecc.core.explorer.DeviceKind;
 import io.github.codaaaaaa.mecc.core.error.MeccException;
 import io.github.codaaaaaa.mecc.core.patterns.PatternDefinition;
 import io.github.codaaaaaa.mecc.core.patterns.PatternIssue;
@@ -25,6 +26,10 @@ import io.github.codaaaaaa.mecc.platform.Ae2Platform;
 import io.github.codaaaaaa.mecc.platform.AssetPlatform;
 import io.github.codaaaaaa.mecc.platform.CraftingPlatform;
 import io.github.codaaaaaa.mecc.platform.NetworkPlatform;
+import io.github.codaaaaaa.mecc.platform.NetworkPlatform.DeviceCapture;
+import io.github.codaaaaaa.mecc.platform.NetworkPlatform.DeviceGroupState;
+import io.github.codaaaaaa.mecc.platform.NetworkPlatform.RequestState;
+import io.github.codaaaaaa.mecc.platform.NetworkPlatform.RequesterCapture;
 import io.github.codaaaaaa.mecc.platform.PatternPlatform;
 import io.github.codaaaaaa.mecc.platform.RecipePlatform;
 import io.github.codaaaaaa.mecc.platform.RecipePlatform.PatternRecipe;
@@ -189,6 +194,9 @@ public final class FakePlatform implements MeccPlatform, AutoCloseable {
         };
     }
 
+    /** In-game ME Requesters of the network, as the optional ME Requester mod would report them. */
+    public final List<NetworkPlatform.RequesterState> requesters = new CopyOnWriteArrayList<>();
+
     @Override
     public NetworkPlatform networks() {
         return new NetworkPlatform() {
@@ -199,6 +207,45 @@ public final class FakePlatform implements MeccPlatform, AutoCloseable {
                 knownAnchors.forEach(location -> probes.put(location, AnchorProbe.UNLOADED));
                 grids.forEach(grid -> grid.anchors().forEach(anchor -> probes.remove(anchor.location())));
                 return new DiscoverySnapshot(Instant.now(), List.copyOf(grids), probes);
+            }
+
+            @Override
+            public RequesterCapture captureRequesters(String gridKey) {
+                requireServerThread();
+                return new RequesterCapture(true, List.copyOf(requesters));
+            }
+
+            @Override
+            public boolean clearRequest(String gridKey, String requesterId, int slot) {
+                requireServerThread();
+                for (NetworkPlatform.RequesterState requester : requesters) {
+                    if (!requester.id().equals(requesterId)) {
+                        continue;
+                    }
+                    List<RequestState> left = requester.requests().stream()
+                            .filter(request -> request.slot() != slot).toList();
+                    if (left.size() == requester.requests().size()) {
+                        return false;
+                    }
+                    requesters.remove(requester);
+                    requesters.add(new NetworkPlatform.RequesterState(requester.id(), requester.name(),
+                            requester.location(), requester.online(), left));
+                    return true;
+                }
+                return false;
+            }
+
+            @Override
+            public DeviceCapture describeDevices(String gridKey) {
+                requireServerThread();
+                DiscoveredGrid grid = grids.stream().filter(candidate -> candidate.runtimeKey().equals(gridKey))
+                        .findFirst()
+                        .orElseThrow(() -> new MeccException(ErrorCode.NETWORK_OFFLINE,
+                                "The ME network is not loaded right now"));
+                List<DeviceGroupState> groups = List.of(new DeviceGroupState(DeviceKind.ACCESS_POINT, null,
+                        grid.anchors().size(), 0, grid.anchors().size(), 1.0,
+                        grid.anchors().stream().map(ObservedAnchor::location).toList(), false));
+                return new DeviceCapture(Instant.now(), grid.status(), groups, grid.anchors().size(), 0);
             }
         };
     }
@@ -294,8 +341,15 @@ public final class FakePlatform implements MeccPlatform, AutoCloseable {
         public final ResourceDescriptor output;
         public final long amount;
         public volatile double progress;
+        /** Who requested it: the web requester, or set by tests for jobs started "in game". */
+        public volatile UUID requester;
+        public volatile String requesterName;
+        /** What {@code describeJob} reports; {@code null} makes the job unreadable. */
+        public volatile List<CraftingPlatform.JobTask> tasks = List.of();
+        public volatile List<CraftingPlatform.ResourceAmount> stored = List.of();
+        public volatile List<CraftingPlatform.ResourceAmount> inMachines = List.of();
 
-        FakeJob(String jobId, ResourceDescriptor output, long amount) {
+        public FakeJob(String jobId, ResourceDescriptor output, long amount) {
             this.jobId = jobId;
             this.output = output;
             this.amount = amount;
@@ -351,6 +405,19 @@ public final class FakePlatform implements MeccPlatform, AutoCloseable {
         }
 
         @Override
+        public JobDetail describeJob(String gridKey, String cpuId) {
+            requireServerThread();
+            requireGrid(gridKey);
+            FakeCpu cpu = cpus.stream().filter(candidate -> candidate.id.equals(cpuId)).findFirst().orElse(null);
+            FakeJob job = cpu == null ? null : cpu.job;
+            if (job == null || job.tasks == null) {
+                return null;
+            }
+            return new JobDetail(job.jobId, job.output, job.amount, Duration.ofSeconds(3), job.tasks, job.stored,
+                    job.inMachines);
+        }
+
+        @Override
         public CpuCapture captureCpus(String gridKey, java.util.Set<String> watchedJobIds) {
             requireServerThread();
             requireGrid(gridKey);
@@ -359,7 +426,8 @@ public final class FakePlatform implements MeccPlatform, AutoCloseable {
             for (FakeCpu cpu : cpus) {
                 FakeJob job = cpu.job;
                 JobState jobState = job == null ? null
-                        : new JobState(job.jobId, job.output, job.amount, job.progress, Duration.ofSeconds(3));
+                        : new JobState(job.jobId, job.output, job.amount, job.progress, Duration.ofSeconds(3),
+                                job.requester, job.requesterName);
                 states.add(new CpuState(cpu.id, cpu.name == null ? null : ResourceText.literal(cpu.name),
                         null, job != null, cpu.online, cpu.storage, 1, cpu.selectionMode, jobState));
                 if (job != null && watchedJobIds.contains(job.jobId)) {
@@ -412,6 +480,8 @@ public final class FakePlatform implements MeccPlatform, AutoCloseable {
                 if (target == null) return SubmitOutcome.rejected("NO_SUITABLE_CPU", Map.of("busy", 1));
             }
             FakeJob job = new FakeJob(UUID.randomUUID().toString(), plan.recipe.output(), plan.amount);
+            job.requester = requester.uuid();
+            job.requesterName = requester.name();
             target.job = job;
             return SubmitOutcome.started(target.id, target.name == null ? null : ResourceText.literal(target.name), job.jobId);
         }
@@ -550,6 +620,16 @@ public final class FakePlatform implements MeccPlatform, AutoCloseable {
     }
 
     public final class FakePatterns implements PatternPlatform {
+        /** What {@code captureMachines} reports. */
+        public final List<MachineState> machines = new CopyOnWriteArrayList<>();
+
+        @Override
+        public MachineCapture captureMachines(String gridKey) {
+            requireServerThread();
+            crafting.requireGrid(gridKey);
+            return new MachineCapture(Instant.now(), machines);
+        }
+
         public final List<FakeProvider> providers = new CopyOnWriteArrayList<>();
         public final java.util.concurrent.atomic.AtomicLong blankPatterns = new java.util.concurrent.atomic.AtomicLong();
         /** Encoded patterns delivered into ME storage. */
