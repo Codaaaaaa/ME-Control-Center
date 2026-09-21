@@ -1,0 +1,90 @@
+# Cuts a release for every push to main: bump mod_version, build the mod jar, tag, publish.
+# Bump level comes from the commit messages since the last tag:
+#   "feat!:" or "BREAKING CHANGE" -> major, "feat:" -> minor, anything else -> patch.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.github/**'
+      - '.gitignore'
+      - '.gitattributes'
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump'
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: "!contains(github.event.head_commit.message, '[skip release]')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decide the next version
+        id: version
+        run: |
+          set -eu
+          current=$(sed -n 's/^mod_version=//p' gradle.properties)
+          last=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+          next=$(git log --format=%B ${last:+$last..}HEAD |
+                 .github/next-version.sh "$current" "${{ inputs.bump || 'auto' }}")
+
+          if git rev-parse -q --verify "refs/tags/v$next" >/dev/null; then
+            echo "::error::tag v$next already exists; fix mod_version in gradle.properties"
+            exit 1
+          fi
+          echo "$current -> $next (since ${last:-the first commit})"
+          echo "version=$next" >> "$GITHUB_OUTPUT"
+          echo "previous=$last" >> "$GITHUB_OUTPUT"
+
+      - name: Bump mod_version
+        run: sed -i "s/^mod_version=.*/mod_version=${{ steps.version.outputs.version }}/" gradle.properties
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build the mod jar
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon buildMod :client-exporter-forge-1.20.1:build
+
+      - name: Tag the release
+        run: |
+          set -eu
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit gradle.properties -m "chore(release): v${{ steps.version.outputs.version }} [skip release]"
+          git tag -a "v${{ steps.version.outputs.version }}" -m "ME Control Center v${{ steps.version.outputs.version }}"
+          git push origin HEAD:main --follow-tags
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "v$V" \
+            --title "ME Control Center v$V" \
+            --generate-notes \
+            ${{ steps.version.outputs.previous && format('--notes-start-tag {0}', steps.version.outputs.previous) || '' }} \
+            "platform-forge-1.20.1/build/libs/me-control-center-forge-1.20.1-$V.jar" \
+            "client-exporter-forge-1.20.1/build/libs/me-control-center-client-exporter-forge-1.20.1-$V.jar"
