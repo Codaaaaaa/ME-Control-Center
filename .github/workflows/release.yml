@@ -43,7 +43,7 @@ jobs:
           current=$(sed -n 's/^mod_version=//p' gradle.properties)
           last=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
           next=$(git log --format=%B ${last:+$last..}HEAD |
-                 .github/next-version.sh "$current" "${{ inputs.bump || 'auto' }}")
+                 bash .github/next-version.sh "$current" "${{ inputs.bump || 'auto' }}")
 
           if git rev-parse -q --verify "refs/tags/v$next" >/dev/null; then
             echo "::error::tag v$next already exists; fix mod_version in gradle.properties"
