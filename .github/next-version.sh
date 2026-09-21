@@ -2,7 +2,7 @@
 # Prints the next mod_version. Usage: next-version.sh <current> [auto|patch|minor|major]
 # With "auto" (the default) the commit log is read from stdin and decides the bump:
 #   "feat!:" / "BREAKING CHANGE" -> major, "feat:" -> minor, anything else -> patch.
-# Self-test: .github/next-version.sh --self-test
+# Self-test: bash .github/next-version.sh --self-test
 set -euo pipefail
 
 next_version() {
